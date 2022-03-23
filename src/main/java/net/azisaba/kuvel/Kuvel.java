@@ -25,7 +25,7 @@ import net.azisaba.kuvel.redis.RedisSubscriber;
 @Plugin(
     id = "kuvel",
     name = "Kuvel",
-    version = "1.0.0",
+    version = "1.0.1",
     url = "https://github.com/AzisabaNetwork/Kuvel",
     description =
         "Server-discovery Velocity plugin for Minecraft servers running in a Kubernetes cluster.",
