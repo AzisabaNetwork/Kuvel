@@ -72,8 +72,11 @@ public class Kuvel {
               kuvelConfig.getProxyGroupName());
       proxyIdProvider.runTask(proxy, this);
 
+      logger.info("This proxy's id is: " + proxyIdProvider.getId());
+
       redisConnectionLeader =
           new RedisConnectionLeader(
+              this,
               kuvelConfig.getRedisConnectionData().createJedisPool(),
               kuvelConfig.getProxyGroupName(),
               proxyIdProvider.getId());
@@ -82,6 +85,7 @@ public class Kuvel {
       if (redisConnectionLeader.isLeader()) {
         logger.info("This proxy is selected as leader.");
       }
+
       kuvelServiceHandler.setAndRunLoadBalancerDiscovery(
           new RedisLoadBalancerDiscovery(
               client,

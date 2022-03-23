@@ -14,7 +14,9 @@ public enum RedisKeys {
   POD_ADDED_NOTIFY_PREFIX("kuvel:notify:add:pod:"),
   LOAD_BALANCER_ADDED_NOTIFY_PREFIX("kuvel:notify:add:lb:"),
   POD_DELETED_NOTIFY_PREFIX("kuvel:notify:del:pod:"),
-  LOAD_BALANCER_DELETED_NOTIFY_PREFIX("kuvel:notify:del:lb:");
+  LOAD_BALANCER_DELETED_NOTIFY_PREFIX("kuvel:notify:del:lb:"),
+  LEADER_LEAVE_NOTIFY_PREFIX("kuvel:notify:leader-leave:"),
+  LEADER_CHANGED_NOTIFY_PREFIX("kuvel:notify:leader-changed:");
 
   private final String key;
 
