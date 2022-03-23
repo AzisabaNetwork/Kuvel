@@ -32,12 +32,18 @@ public class RedisSubscriber {
         new JedisPubSub() {
           @Override
           public void onPMessage(String pattern, String channel, String message) {
-            if (redisConnectionLeader.isLeader()) {
+            String receivedGroupName = channel.split(":")[channel.split(":").length - 1];
+            if (!receivedGroupName.equalsIgnoreCase(groupName)) {
               return;
             }
 
-            String receivedGroupName = channel.split(":")[channel.split(":").length - 1];
-            if (!receivedGroupName.equalsIgnoreCase(groupName)) {
+            if (channel.startsWith(RedisKeys.LEADER_CHANGED_NOTIFY_PREFIX.getKey())
+                || channel.startsWith(RedisKeys.LEADER_LEAVE_NOTIFY_PREFIX.getKey())) {
+              redisConnectionLeader.trySwitch();
+              return;
+            }
+
+            if (redisConnectionLeader.isLeader()) {
               return;
             }
 

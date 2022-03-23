@@ -2,12 +2,16 @@ package net.azisaba.kuvel.redis;
 
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
+import net.azisaba.kuvel.Kuvel;
+import net.azisaba.kuvel.discovery.impl.RedisLoadBalancerDiscovery;
+import net.azisaba.kuvel.discovery.impl.RedisServerDiscovery;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
 @RequiredArgsConstructor
 public class RedisConnectionLeader {
 
+  private final Kuvel plugin;
   private final JedisPool jedisPool;
   private final String groupName;
   private final String proxyId;
@@ -31,6 +35,10 @@ public class RedisConnectionLeader {
         jedis.expire(key, 600);
         leader = true;
         leaderExpireAt = System.currentTimeMillis() + (600 * 1000);
+
+        plugin.getLogger().info("This proxy was selected as a new leader.");
+        jedis.publish(RedisKeys.LEADER_CHANGED_NOTIFY_PREFIX.getKey() + groupName, proxyId);
+        runDiscoveryTask();
         return true;
       } else {
         String currentLeader = jedis.get(RedisKeys.LEADER_PREFIX.getKey() + groupName);
@@ -38,6 +46,11 @@ public class RedisConnectionLeader {
           leader = true;
           return true;
         }
+
+        if (leader) {
+          stopDiscoveryTask();
+        }
+        leader = false;
         return false;
       }
     }
@@ -62,6 +75,7 @@ public class RedisConnectionLeader {
       }
 
       jedis.del(RedisKeys.LEADER_PREFIX.getKey() + groupName);
+      jedis.publish(RedisKeys.LEADER_LEAVE_NOTIFY_PREFIX.getKey() + groupName, proxyId);
     }
   }
 
@@ -91,5 +105,38 @@ public class RedisConnectionLeader {
     try (Jedis jedis = jedisPool.getResource()) {
       jedis.publish(RedisKeys.POD_DELETED_NOTIFY_PREFIX.getKey() + groupName, podUid);
     }
+  }
+
+  private void runDiscoveryTask() {
+    if (plugin.getKuvelConfig().getRedisConnectionData() == null) {
+      return;
+    }
+
+    plugin
+        .getKuvelServiceHandler()
+        .setAndRunLoadBalancerDiscovery(
+            new RedisLoadBalancerDiscovery(
+                plugin.getClient(),
+                plugin,
+                plugin.getKuvelConfig().getRedisConnectionData().createJedisPool(),
+                plugin.getKuvelConfig().getProxyGroupName(),
+                this,
+                plugin.getKuvelServiceHandler()));
+
+    plugin
+        .getKuvelServiceHandler()
+        .setAndRunServerDiscovery(
+            new RedisServerDiscovery(
+                plugin.getClient(),
+                plugin,
+                plugin.getKuvelConfig().getRedisConnectionData().createJedisPool(),
+                plugin.getKuvelConfig().getProxyGroupName(),
+                this,
+                plugin.getKuvelServiceHandler()));
+  }
+
+  private void stopDiscoveryTask() {
+    plugin.getKuvelServiceHandler().setAndRunLoadBalancerDiscovery(null);
+    plugin.getKuvelServiceHandler().setAndRunServerDiscovery(null);
   }
 }
