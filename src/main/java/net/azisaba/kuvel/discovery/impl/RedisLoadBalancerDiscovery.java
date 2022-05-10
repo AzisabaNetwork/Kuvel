@@ -53,11 +53,18 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
                 .withLabel(LabelKeys.SERVER_DISCOVERY.getKey(), "true")
                 .withLabel(LabelKeys.SERVER_NAME.getKey())
                 .watch(
-                    new Watcher<ReplicaSet>() {
+                    new Watcher<>() {
                       @Override
                       public void eventReceived(Action action, ReplicaSet replicaSet) {
                         lock.lock();
                         try {
+                          if (replicaSet.getStatus().getReplicas() <= 0
+                              && replicaSet.getStatus().getObservedGeneration() != null
+                              && replicaSet.getStatus().getObservedGeneration() > 1) {
+                            unregisterOrIgnore(replicaSet);
+                            return;
+                          }
+
                           if (action == Action.ADDED) {
                             registerOrIgnore(replicaSet);
                           } else if (action == Action.DELETED) {
@@ -162,6 +169,11 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
             .list()
             .getItems()
             .stream()
+            .filter(
+                replicaSet ->
+                    replicaSet.getStatus().getReplicas() > 0
+                        || replicaSet.getStatus().getObservedGeneration() == null
+                        || replicaSet.getStatus().getObservedGeneration() <= 1)
             .filter(
                 replicaSet ->
                     !uidAndServerNameMapInRedis.containsKey(replicaSet.getMetadata().getUid()))
