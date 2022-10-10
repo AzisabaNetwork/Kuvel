@@ -13,19 +13,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import lombok.Getter;
 import net.azisaba.kuvel.config.KuvelConfig;
-import net.azisaba.kuvel.discovery.impl.RedisLoadBalancerDiscovery;
-import net.azisaba.kuvel.discovery.impl.RedisServerDiscovery;
-import net.azisaba.kuvel.discovery.impl.SimpleLoadBalancerDiscovery;
-import net.azisaba.kuvel.discovery.impl.SimpleServerDiscovery;
+import net.azisaba.kuvel.discovery.impl.redis.RedisLoadBalancerDiscovery;
+import net.azisaba.kuvel.discovery.impl.redis.RedisServerDiscovery;
+import net.azisaba.kuvel.listener.ChooseInitialServerListener;
 import net.azisaba.kuvel.listener.LoadBalancerListener;
 import net.azisaba.kuvel.redis.ProxyIdProvider;
 import net.azisaba.kuvel.redis.RedisConnectionLeader;
-import net.azisaba.kuvel.redis.RedisSubscriber;
+import net.azisaba.kuvel.redis.RedisSubscriberExecutor;
 
 @Plugin(
     id = "kuvel",
     name = "Kuvel",
-    version = "1.0.2",
+    version = "2.0.0",
     url = "https://github.com/AzisabaNetwork/Kuvel",
     description =
         "Server-discovery Velocity plugin for Minecraft servers running in a Kubernetes cluster.",
@@ -36,11 +35,11 @@ public class Kuvel {
   private final ProxyServer proxy;
   private final Logger logger;
 
-  private final KubernetesClient client = new DefaultKubernetesClient();
+  private KubernetesClient client;
   private KuvelServiceHandler kuvelServiceHandler;
   private RedisConnectionLeader redisConnectionLeader;
   private ProxyIdProvider proxyIdProvider;
-  private RedisSubscriber redisSubscriber;
+  private RedisSubscriberExecutor redisSubscriberExecutor;
 
   private KuvelConfig kuvelConfig;
 
@@ -52,6 +51,8 @@ public class Kuvel {
 
   @Subscribe
   public void onProxyInitialization(ProxyInitializeEvent event) {
+    client = new DefaultKubernetesClient();
+
     kuvelConfig = new KuvelConfig(this);
     try {
       kuvelConfig.load();
@@ -62,78 +63,69 @@ public class Kuvel {
     }
 
     kuvelServiceHandler = new KuvelServiceHandler(this, client);
-    if (kuvelConfig.isRedisEnabled()) {
-      Objects.requireNonNull(kuvelConfig.getRedisConnectionData());
-      Objects.requireNonNull(kuvelConfig.getProxyGroupName());
 
-      proxyIdProvider =
-          new ProxyIdProvider(
-              kuvelConfig.getRedisConnectionData().createJedisPool(),
-              kuvelConfig.getProxyGroupName());
-      proxyIdProvider.runTask(proxy, this);
+    Objects.requireNonNull(kuvelConfig.getRedisConnectionData());
+    Objects.requireNonNull(kuvelConfig.getProxyGroupName());
 
-      logger.info("This proxy's id is: " + proxyIdProvider.getId());
+    proxyIdProvider =
+        new ProxyIdProvider(
+            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getProxyGroupName());
+    proxyIdProvider.runTask(proxy, this);
 
-      redisConnectionLeader =
-          new RedisConnectionLeader(
-              this,
-              kuvelConfig.getRedisConnectionData().createJedisPool(),
-              kuvelConfig.getProxyGroupName(),
-              proxyIdProvider.getId());
+    logger.info("This proxy's id is: " + proxyIdProvider.getId());
 
-      redisConnectionLeader.trySwitch();
-      if (redisConnectionLeader.isLeader()) {
-        logger.info("This proxy is selected as leader.");
-      }
+    redisConnectionLeader =
+        new RedisConnectionLeader(
+            this,
+            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getProxyGroupName(),
+            proxyIdProvider.getId());
 
-      kuvelServiceHandler.setAndRunLoadBalancerDiscovery(
-          new RedisLoadBalancerDiscovery(
-              client,
-              this,
-              kuvelConfig.getRedisConnectionData().createJedisPool(),
-              kuvelConfig.getProxyGroupName(),
-              redisConnectionLeader,
-              kuvelServiceHandler));
+    redisConnectionLeader.trySwitch();
 
-      kuvelServiceHandler.setAndRunServerDiscovery(
-          new RedisServerDiscovery(
-              client,
-              this,
-              kuvelConfig.getRedisConnectionData().createJedisPool(),
-              kuvelConfig.getProxyGroupName(),
-              redisConnectionLeader,
-              kuvelServiceHandler));
+    kuvelServiceHandler.setAndRunLoadBalancerDiscovery(
+        new RedisLoadBalancerDiscovery(
+            client,
+            this,
+            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getProxyGroupName(),
+            redisConnectionLeader,
+            kuvelServiceHandler));
 
-      proxy
-          .getScheduler()
-          .buildTask(
-              this,
-              () -> {
-                if (redisConnectionLeader.isLeader()) {
-                  redisConnectionLeader.extendLeader();
-                } else {
-                  redisConnectionLeader.trySwitch();
-                }
-              })
-          .repeat(5, TimeUnit.MINUTES)
-          .schedule();
+    kuvelServiceHandler.setAndRunServerDiscovery(
+        new RedisServerDiscovery(
+            client,
+            this,
+            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getProxyGroupName(),
+            redisConnectionLeader,
+            kuvelServiceHandler));
 
-      redisSubscriber =
-          new RedisSubscriber(
-              kuvelConfig.getRedisConnectionData().createJedisPool(),
-              this,
-              kuvelConfig.getProxyGroupName(),
-              kuvelServiceHandler,
-              redisConnectionLeader);
-      redisSubscriber.subscribe();
-    } else {
-      kuvelServiceHandler.setAndRunLoadBalancerDiscovery(
-          new SimpleLoadBalancerDiscovery(client, this, kuvelServiceHandler));
-      kuvelServiceHandler.setAndRunServerDiscovery(
-          new SimpleServerDiscovery(client, this, kuvelServiceHandler));
-    }
+    proxy
+        .getScheduler()
+        .buildTask(
+            this,
+            () -> {
+              if (redisConnectionLeader.isLeader()) {
+                redisConnectionLeader.extendLeaderExpire();
+              } else {
+                redisConnectionLeader.trySwitch();
+              }
+            })
+        .repeat(5, TimeUnit.SECONDS)
+        .schedule();
 
-    proxy.getEventManager().register(this, new LoadBalancerListener(this, kuvelServiceHandler));
+    redisSubscriberExecutor =
+        new RedisSubscriberExecutor(
+            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getProxyGroupName());
+    redisSubscriberExecutor.subscribe(this, kuvelServiceHandler, redisConnectionLeader);
+
+    proxy.getEventManager().register(this, new LoadBalancerListener(kuvelServiceHandler));
+    proxy
+        .getEventManager()
+        .register(this, new ChooseInitialServerListener(proxy, kuvelServiceHandler));
   }
 
   @Subscribe

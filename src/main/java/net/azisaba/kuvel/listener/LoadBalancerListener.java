@@ -7,17 +7,15 @@ import com.velocitypowered.api.event.player.ServerPreConnectEvent;
 import com.velocitypowered.api.event.player.ServerPreConnectEvent.ServerResult;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import lombok.RequiredArgsConstructor;
-import net.azisaba.kuvel.Kuvel;
 import net.azisaba.kuvel.KuvelServiceHandler;
 
 @RequiredArgsConstructor
 public class LoadBalancerListener {
 
-  private final Kuvel plugin;
   private final KuvelServiceHandler handler;
 
   @Subscribe(order = PostOrder.LATE)
-  public void onServerChanged(PlayerChooseInitialServerEvent event) {
+  public void onInitialServerChoose(PlayerChooseInitialServerEvent event) {
     event
         .getInitialServer()
         .ifPresent(

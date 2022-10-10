@@ -18,6 +18,7 @@ public class LoadBalancer {
   private final LoadBalancingStrategy strategy;
   private final String replicaSetUid;
 
+  private final boolean isInitialServer;
   private final List<String> endpointServers = new ArrayList<>();
 
   public void addEndpoint(String serverName) {
