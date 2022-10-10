@@ -1,25 +1,45 @@
 # Kuvel
 ## Overview
-Kuvel, A service discovery plugin for Velocity. It will automatically discover Minecraft servers and register/unregister them in Velocity.
+Kuvel, A service discovery plugin for Velocity. It will automatically discover Minecraft servers and
+register/unregister them in Velocity.
 
 ## Features
 
-* Monitor Minecraft pods in a Kubernetes cluster and automatically register/unregister them with Velocity
+* Monitor Minecraft pods in a Kubernetes cluster and automatically register/unregister them with
+  Velocity
 * Create a LoadBalancer server and distribute players trying to join to the linked servers.
 * Synchronize server names across multiple Velocity servers using Redis
 
 ## Installing
 
-The Plugin can be downloaded from [Releases](https://github.com/AzisabaNetwork/Kuvel/releases/latest). Download `Kuvel.jar` and install it into Velocity.
+The Plugin can be downloaded
+from [Releases](https://github.com/AzisabaNetwork/Kuvel/releases/latest). Download `Kuvel.jar` and
+install it into Velocity plugins directory. Also, you have to fill in the configuration file.
 
-In order for Kuvel to monitor the server, you must request permission from Kubernetes to allow Velocity pods discovery Minecraft servers. For Velocity pods, please allow get/list/watch to Pods and ReplicaSets.
+```yml
+# Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
+redis:
+  group-name: "production"
+  connection:
+    hostname: "redis"
+    port: 6379
+    # username is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
+    username: "default"
+    # password is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
+    password: "password"
+```
+
+In order for Kuvel to monitor the server, you must request permission from Kubernetes to allow
+Velocity pods discovery Minecraft servers. For Velocity pods, please allow get/list/watch to Pods
+and ReplicaSets.
+
 ```yml
  apiVersion: v1
  kind: ServiceAccount
  metadata:
    name: velocity-account
    namespace: default
- ---
+   ---
  apiVersion: rbac.authorization.k8s.io/v1
  kind: ClusterRoleBinding
  metadata:
@@ -51,20 +71,22 @@ To tell Kuvel that the pod is a Minecraft server, use Label feature of Kubernete
 |minecraftServerName|Name of the server you wish to register with Velocity|
 
 ### Pod
+
 ```yml
 apiVersion: v1
 kind: Pod
 metadata:
   name: test-server
   labels:
-    minecraftServiceDiscovery: "true" # Required for Kuvel to detect Minecraft servers.
-    minecraftServerName: "test-server" # Required for Kuvel to name the server
+    kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers.
+    kuvel.azisaba.net/preferred-server-name: : "test-server" # Required for Kuvel to name the server
+    # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this server the initial server.   
 spec:
   containers:
-  - name: test-server
-    image: itzg/minecraft-server:java8
-    ports:
-    - containerPort: 25565
+    - name: test-server
+      image: itzg/minecraft-server:java8
+      ports:
+        - containerPort: 25565
 ```
 
 ### Deployment
@@ -82,8 +104,9 @@ spec:
     metadata:
       labels:
         app: test-server-deployment
-        minecraftServiceDiscovery: "true" # Required for Kuvel to detect Minecraft servers.
-        minecraftServerName: "test-server" # Required for Kuvel to name the server
+        kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers.
+        kuvel.azisaba.net/preferred-server-name: "test-server" # Required for Kuvel to name the server
+        # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this server the initial server.
     spec:
       containers:
         - name: test-server
@@ -106,8 +129,9 @@ kind: Deployment
 metadata:
   name: lobby-deployment
   labels:
-    minecraftServiceDiscovery: "true"
-    minecraftServerName: "lobby"
+    kuvel.azisaba.net/enable-server-discovery: "true"
+    kuvel.azisaba.net/preferred-server-name: "lobby"
+    # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this load balancer server the initial server.
 spec:
   replicas: 3
   selector:
@@ -117,8 +141,9 @@ spec:
     metadata:
       labels:
         app: lobby-deployment
-        minecraftServiceDiscovery: "true"
-        minecraftServerName: "lobby"
+        kuvel.azisaba.net/enable-server-discovery: "true"
+        kuvel.azisaba.net/preferred-server-name: "lobby"
+        # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this server the initial server.
     spec:
       containers:
         - name: lobby
@@ -136,19 +161,12 @@ Using this, you can implement a mechanism to randomly connect to `lobby-1`, `lob
 
 ## Synchronize Server Names in Multi Velocity Environment
 
-In a Kubernetes cluster, pods can be created at almost the same time, and this can cause a fatal problem in a parallel Velocity environment because it is possible that different Velocity servers have different registration names. Kuvel provides name synchronization using Redis to avoid this problem.
+In a Kubernetes cluster, pods can be created at almost the same time, and this can cause a fatal
+problem in a parallel Velocity environment because it is possible that different Velocity servers
+have different registration names. Kuvel provides name synchronization using Redis to avoid this
+issue. Kuvel uses keys whose key name begins with `kuvel:`.
 
-To enable this feature, simply set `redis.enable` to `true` in config.yml. Kuvel uses keys whose key name begins with `kuvel:`.
-```yml
-redis:
-  enable: true # Setting it to true enables server name synchronization using Redis
-  group-name: "production" # Name synchronization is performed only between servers with the same Redis server and the same group-name
-  connection:
-    hostname: "localhost"
-    port: 6379
-    username: "root"
-    password: "password"
-```
+On 1.x, this feature was optional, but since 2.0.0, this setting became enabled by default.
 
 ## License
 [GNU General Public License v3.0](LICENSE)

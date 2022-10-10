@@ -3,10 +3,11 @@ package net.azisaba.kuvel.redis;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import net.azisaba.kuvel.Kuvel;
-import net.azisaba.kuvel.discovery.impl.RedisLoadBalancerDiscovery;
-import net.azisaba.kuvel.discovery.impl.RedisServerDiscovery;
+import net.azisaba.kuvel.discovery.impl.redis.RedisLoadBalancerDiscovery;
+import net.azisaba.kuvel.discovery.impl.redis.RedisServerDiscovery;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.params.SetParams;
 
 @RequiredArgsConstructor
 public class RedisConnectionLeader {
@@ -29,12 +30,11 @@ public class RedisConnectionLeader {
   public boolean trySwitch() {
     try (Jedis jedis = jedisPool.getResource()) {
       String key = RedisKeys.LEADER_PREFIX.getKey() + groupName;
-      long result = jedis.setnx(key, proxyId);
+      String result = jedis.set(key, proxyId, SetParams.setParams().nx().ex(10));
 
-      if (result == 1) {
-        jedis.expire(key, 600);
+      if (result != null) {
         leader = true;
-        leaderExpireAt = System.currentTimeMillis() + (600 * 1000);
+        leaderExpireAt = System.currentTimeMillis() + (10 * 1000);
 
         plugin.getLogger().info("This proxy was selected as a new leader.");
         jedis.publish(RedisKeys.LEADER_CHANGED_NOTIFY_PREFIX.getKey() + groupName, proxyId);
@@ -56,14 +56,14 @@ public class RedisConnectionLeader {
     }
   }
 
-  public void extendLeader() {
+  public void extendLeaderExpire() {
     if (!trySwitch()) {
       return;
     }
 
     try (Jedis jedis = jedisPool.getResource()) {
-      jedis.expire(RedisKeys.LEADER_PREFIX.getKey() + groupName, 600);
-      leaderExpireAt = System.currentTimeMillis() + (600 * 1000);
+      jedis.expire(RedisKeys.LEADER_PREFIX.getKey() + groupName, 10);
+      leaderExpireAt = System.currentTimeMillis() + (10 * 1000);
     }
   }
 
@@ -79,11 +79,12 @@ public class RedisConnectionLeader {
     }
   }
 
-  public void publishNewLoadBalancer(String replicaSetUid, String serverName) {
+  public void publishNewLoadBalancer(
+      String replicaSetUid, String serverName, boolean initialServer) {
     try (Jedis jedis = jedisPool.getResource()) {
       jedis.publish(
           RedisKeys.LOAD_BALANCER_ADDED_NOTIFY_PREFIX.getKey() + groupName,
-          replicaSetUid + ":" + serverName);
+          replicaSetUid + ":" + serverName + ":" + initialServer);
     }
   }
 
@@ -109,6 +110,7 @@ public class RedisConnectionLeader {
 
   private void runDiscoveryTask() {
     if (plugin.getKuvelConfig().getRedisConnectionData() == null) {
+      leaveLeader();
       return;
     }
 

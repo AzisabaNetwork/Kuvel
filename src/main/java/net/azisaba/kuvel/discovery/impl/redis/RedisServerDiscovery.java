@@ -1,24 +1,29 @@
-package net.azisaba.kuvel.discovery.impl;
+package net.azisaba.kuvel.discovery.impl.redis;
 
+import com.velocitypowered.api.scheduler.ScheduledTask;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.Watcher;
-import io.fabric8.kubernetes.client.WatcherException;
+import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import net.azisaba.kuvel.Kuvel;
 import net.azisaba.kuvel.KuvelServiceHandler;
 import net.azisaba.kuvel.discovery.ServerDiscovery;
+import net.azisaba.kuvel.discovery.diffchecker.PodDiffChecker;
 import net.azisaba.kuvel.redis.RedisConnectionLeader;
 import net.azisaba.kuvel.redis.RedisKeys;
 import net.azisaba.kuvel.util.LabelKeys;
+import org.apache.commons.lang3.time.DateFormatUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
@@ -32,7 +37,8 @@ public class RedisServerDiscovery implements ServerDiscovery {
   private final RedisConnectionLeader redisConnectionLeader;
   private final KuvelServiceHandler kuvelServiceHandler;
 
-  private final ExecutorService serverDiscoveryExecutor = Executors.newFixedThreadPool(1);
+  private final AtomicReference<ScheduledTask> taskReference = new AtomicReference<>();
+  private final PodDiffChecker podDiffChecker = new PodDiffChecker().init();
   private final ReentrantLock lock = new ReentrantLock();
 
   @Override
@@ -41,38 +47,50 @@ public class RedisServerDiscovery implements ServerDiscovery {
       return;
     }
 
-    run(
-        serverDiscoveryExecutor,
-        () ->
-            client
-                .pods()
-                .inAnyNamespace()
-                .withLabel(LabelKeys.SERVER_DISCOVERY.getKey(), "true")
-                .withField("status.phase", "Running")
-                .watch(
-                    new Watcher<Pod>() {
-                      @Override
-                      public void eventReceived(Action action, Pod pod) {
-                        lock.lock();
-                        try {
-                          if (action == Action.ADDED) {
-                            registerPodOrIgnore(pod);
-                          } else if (action == Action.DELETED) {
-                            unregisterPodOrIgnore(pod);
-                          }
-                        } finally {
-                          lock.unlock();
-                        }
-                      }
+    Runnable runnable =
+        () -> {
+          List<Pod> podList =
+              client
+                  .pods()
+                  .inAnyNamespace()
+                  .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
+                  .list()
+                  .getItems();
 
-                      @Override
-                      public void onClose(WatcherException e) {}
-                    }));
+          for (Pod pod : podList) {
+            if (podDiffChecker.diff(pod)) {
+              processUpdatedPod(pod);
+            }
+          }
+
+          List<String> uidList = podDiffChecker.getDeletedPodUidList(client);
+          uidList.forEach(this::unregisterPodOrIgnore);
+        };
+
+    taskReference.getAndUpdate(
+        task -> {
+          if (task != null) {
+            task.cancel();
+          }
+
+          return plugin
+              .getProxy()
+              .getScheduler()
+              .buildTask(plugin, runnable)
+              .repeat(5, TimeUnit.SECONDS)
+              .schedule();
+        });
   }
 
   @Override
   public void shutdown() {
-    serverDiscoveryExecutor.shutdownNow();
+    taskReference.getAndUpdate(
+        task -> {
+          if (task != null) {
+            task.cancel();
+          }
+          return null;
+        });
   }
 
   @Override
@@ -83,7 +101,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
         podIdToServerNameMap = new HashMap<>(jedis.hgetAll(RedisKeys.SERVERS_PREFIX + groupName));
 
         for (String podUid : new ArrayList<>(podIdToServerNameMap.keySet())) {
-          if (getPodUsingPodUid(podUid) == null) {
+          if (getPodByUid(podUid) == null) {
             podIdToServerNameMap.remove(podUid);
             jedis.hdel(RedisKeys.SERVERS_PREFIX + groupName, podUid);
             redisConnectionLeader.publishDeletedServer(podUid);
@@ -96,7 +114,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
         client
             .pods()
             .inAnyNamespace()
-            .withLabel(LabelKeys.SERVER_DISCOVERY.getKey(), "true")
+            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
             .withField("status.phase", "Running")
             .list()
             .getItems()
@@ -111,14 +129,15 @@ public class RedisServerDiscovery implements ServerDiscovery {
                       pod.getMetadata()
                           .getLabels()
                           .getOrDefault(
-                              LabelKeys.SERVER_NAME.getKey(), pod.getMetadata().getName());
+                              LabelKeys.PREFERRED_SERVER_NAME.getKey(),
+                              pod.getMetadata().getName());
                   String serverName =
                       getValidServerName(
                           preferServerName,
                           (name) ->
                               !podIdToServerNameMap.containsValue(name)
                                   && !loadBalancerMap.containsValue(name)
-                                  && !plugin.getProxy().getServer(name).isPresent());
+                                  && plugin.getProxy().getServer(name).isEmpty());
 
                   podIdToServerNameMap.put(uid, serverName);
                   jedis.hset(RedisKeys.SERVERS_PREFIX + groupName, uid, serverName);
@@ -143,7 +162,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
 
     HashMap<String, Pod> servers = new HashMap<>();
     for (Entry<String, String> entry : podIdToServerNameMap.entrySet()) {
-      Pod pod = getPodUsingPodUid(entry.getKey());
+      Pod pod = getPodByUid(entry.getKey());
       if (pod == null) {
         continue;
       }
@@ -152,6 +171,49 @@ public class RedisServerDiscovery implements ServerDiscovery {
       kuvelServiceHandler.getPodUidAndServerNameMap().register(entry.getKey(), entry.getValue());
     }
     return servers;
+  }
+
+  private void processUpdatedPod(Pod pod) {
+    lock.lock();
+    try {
+      if (pod.getStatus().getPhase().equalsIgnoreCase("Running")) {
+        registerPodOrIgnore(pod);
+      } else if (pod.getStatus().getPhase().equalsIgnoreCase("Terminating")) {
+        if (pod.getMetadata().getDeletionTimestamp() == null) {
+          return;
+        }
+
+        try {
+          Date deletionEndDate =
+              DateFormatUtils.ISO_8601_EXTENDED_DATETIME_TIME_ZONE_FORMAT.parse(
+                  pod.getMetadata().getDeletionTimestamp());
+          Date now = new Date();
+          long secondsRemaining = deletionEndDate.getTime() - now.getTime();
+
+          if (secondsRemaining < 50) {
+            unregisterPodOrIgnore(pod);
+          } else {
+            plugin
+                .getProxy()
+                .getScheduler()
+                .buildTask(
+                    plugin,
+                    () -> {
+                      Pod p = getPodByUid(pod.getMetadata().getUid());
+                      if (p != null) {
+                        processUpdatedPod(p);
+                      }
+                    })
+                .delay(secondsRemaining - 49, TimeUnit.SECONDS)
+                .schedule();
+          }
+        } catch (ParseException e) {
+          e.printStackTrace();
+        }
+      }
+    } finally {
+      lock.unlock();
+    }
   }
 
   private void registerPodOrIgnore(Pod pod) {
@@ -170,7 +232,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
       String preferServerName =
           pod.getMetadata()
               .getLabels()
-              .getOrDefault(LabelKeys.SERVER_NAME.getKey(), pod.getMetadata().getName());
+              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(), pod.getMetadata().getName());
 
       serverName =
           getValidServerName(
@@ -178,7 +240,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
               (name) ->
                   !serverMap.containsValue(name)
                       && !loadBalancerMap.containsValue(name)
-                      && !plugin.getProxy().getServer(name).isPresent());
+                      && plugin.getProxy().getServer(name).isEmpty());
 
       kuvelServiceHandler.getPodUidAndServerNameMap().register(uid, serverName);
       jedis.hset(RedisKeys.SERVERS_PREFIX.getKey() + groupName, uid, serverName);
@@ -189,21 +251,24 @@ public class RedisServerDiscovery implements ServerDiscovery {
   }
 
   private void unregisterPodOrIgnore(Pod pod) {
-    String uid = pod.getMetadata().getUid();
+    unregisterPodOrIgnore(pod.getMetadata().getUid());
+  }
+
+  public void unregisterPodOrIgnore(String uid) {
     if (kuvelServiceHandler.getPodUidAndServerNameMap().getServerNameFromUid(uid) == null) {
       return;
     }
 
     kuvelServiceHandler.unregisterPod(uid);
     // podUidAndServerNameMap.unregister(uid); // no need
-    redisConnectionLeader.publishDeletedServer(pod.getMetadata().getUid());
+    redisConnectionLeader.publishDeletedServer(uid);
 
     try (Jedis jedis = jedisPool.getResource()) {
       jedis.hdel(RedisKeys.SERVERS_PREFIX.getKey() + groupName, uid);
     }
   }
 
-  private Pod getPodUsingPodUid(String podUid) {
+  private Pod getPodByUid(String podUid) {
     return client.pods().list().getItems().stream()
         .filter(pod -> pod.getMetadata().getUid().equals(podUid))
         .findFirst()
@@ -224,33 +289,21 @@ public class RedisServerDiscovery implements ServerDiscovery {
     return name;
   }
 
-  private String getValidServerNameComparingRegisteredServers(String prefer) {
-    if (!plugin.getProxy().getServer(prefer).isPresent()) {
-      return prefer;
-    }
+  private Runnable getDelayRunnable(ExecutorService executor, Runnable runnable) {
+    return () -> {
+      try {
+        Thread.sleep(3000);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
 
-    String name = prefer + "-1";
-    int i = 1;
-    while (plugin.getProxy().getServer(name).isPresent()) {
-      name = name.substring(0, name.length() - (1 + String.valueOf(i).length())) + "-" + (i + 1);
-      i++;
-    }
-    return name;
-  }
-
-  private void run(ExecutorService service, Runnable runnable) {
-    service.submit(runnable);
-    for (int i = 0; i < 1000; i++) {
-      service.submit(
-          () -> {
-            try {
-              Thread.sleep(3000);
-            } catch (InterruptedException e) {
-              Thread.currentThread().interrupt();
-            }
-
-            runnable.run();
-          });
-    }
+      try {
+        runnable.run();
+      } catch (Exception ex) {
+        ex.printStackTrace();
+      } finally {
+        executor.submit(getDelayRunnable(executor, runnable));
+      }
+    };
   }
 }

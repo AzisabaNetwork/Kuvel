@@ -1,15 +1,19 @@
 package net.azisaba.kuvel.util;
 
 import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum LabelKeys {
-  SERVER_DISCOVERY("minecraftServiceDiscovery"),
-  SERVER_NAME("minecraftServerName");
+  ENABLE_SERVER_DISCOVERY("enable-server-discovery"),
+  PREFERRED_SERVER_NAME("preferred-server-name"),
+  INITIAL_SERVER("initial-server");
 
-  @Getter private final String key;
+  private final String key;
+
+  public String getKey() {
+    return "kuvel.azisaba.net/" + key;
+  }
 
   @Override
   public String toString() {

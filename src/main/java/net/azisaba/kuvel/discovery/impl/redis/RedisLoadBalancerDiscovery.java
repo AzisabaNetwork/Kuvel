@@ -1,21 +1,24 @@
-package net.azisaba.kuvel.discovery.impl;
+package net.azisaba.kuvel.discovery.impl.redis;
 
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
+import com.velocitypowered.api.scheduler.ScheduledTask;
 import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.Watcher;
-import io.fabric8.kubernetes.client.WatcherException;
 import java.net.InetSocketAddress;
+import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import lombok.RequiredArgsConstructor;
 import net.azisaba.kuvel.Kuvel;
 import net.azisaba.kuvel.KuvelServiceHandler;
 import net.azisaba.kuvel.discovery.LoadBalancerDiscovery;
+import net.azisaba.kuvel.discovery.diffchecker.ReplicaSetDiffChecker;
 import net.azisaba.kuvel.loadbalancer.LoadBalancer;
 import net.azisaba.kuvel.loadbalancer.strategy.impl.RoundRobinLoadBalancingStrategy;
 import net.azisaba.kuvel.redis.RedisConnectionLeader;
@@ -34,8 +37,11 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
   private final RedisConnectionLeader redisConnectionLeader;
   private final KuvelServiceHandler kuvelServiceHandler;
 
-  private final ExecutorService serverDiscoveryExecutor = Executors.newFixedThreadPool(1);
+  private final AtomicReference<ScheduledTask> taskReference = new AtomicReference<>();
+  private final ReplicaSetDiffChecker replicaSetDiffChecker = new ReplicaSetDiffChecker().init();
   private final ReentrantLock lock = new ReentrantLock();
+
+  private final HashMap<String, ArrayDeque<String>> loadBalancerDeleteWaitQueues = new HashMap<>();
 
   @Override
   public void start() {
@@ -43,41 +49,58 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
       return;
     }
 
-    run(
-        serverDiscoveryExecutor,
-        () ->
-            client
-                .apps()
-                .replicaSets()
-                .inAnyNamespace()
-                .withLabel(LabelKeys.SERVER_DISCOVERY.getKey(), "true")
-                .withLabel(LabelKeys.SERVER_NAME.getKey())
-                .watch(
-                    new Watcher<>() {
-                      @Override
-                      public void eventReceived(Action action, ReplicaSet replicaSet) {
-                        lock.lock();
-                        try {
-                          if (replicaSet.getStatus().getReplicas() <= 0
-                              && replicaSet.getStatus().getObservedGeneration() != null
-                              && replicaSet.getStatus().getObservedGeneration() > 1) {
-                            unregisterOrIgnore(replicaSet);
-                            return;
-                          }
+    Runnable runnable =
+        () -> {
+          List<ReplicaSet> replicaSetList =
+              client
+                  .apps()
+                  .replicaSets()
+                  .inAnyNamespace()
+                  .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
+                  .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
+                  .list()
+                  .getItems();
 
-                          if (action == Action.ADDED) {
-                            registerOrIgnore(replicaSet);
-                          } else if (action == Action.DELETED) {
-                            unregisterOrIgnore(replicaSet);
-                          }
-                        } finally {
-                          lock.unlock();
-                        }
-                      }
+          for (ReplicaSet replicaSet : replicaSetList) {
+            if (replicaSetDiffChecker.diff(replicaSet)) {
+              processUpdatedReplicaSet(replicaSet);
+            }
+          }
 
-                      @Override
-                      public void onClose(WatcherException e) {}
-                    }));
+          List<String> deletedReplicaSetUid =
+              replicaSetDiffChecker.getDeletedReplicaSetUidList(client);
+
+          for (String uid : deletedReplicaSetUid) {
+            unregisterOrIgnore(uid);
+          }
+        };
+
+    taskReference.getAndUpdate(
+        task -> {
+          if (task != null) {
+            task.cancel();
+          }
+
+          return plugin
+              .getProxy()
+              .getScheduler()
+              .buildTask(plugin, runnable)
+              .repeat(5, TimeUnit.SECONDS)
+              .schedule();
+        });
+  }
+
+  private void processUpdatedReplicaSet(ReplicaSet replicaSet) {
+    lock.lock();
+    try {
+      if (replicaSet.getStatus().getReplicas() <= 0) {
+        unregisterOrIgnore(replicaSet.getMetadata().getUid());
+      } else {
+        registerOrIgnore(replicaSet);
+      }
+    } finally {
+      lock.unlock();
+    }
   }
 
   private void registerOrIgnore(ReplicaSet replicaSet) {
@@ -91,7 +114,17 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
     }
 
     String serverName =
-        replicaSet.getMetadata().getLabels().getOrDefault(LabelKeys.SERVER_NAME.getKey(), null);
+        replicaSet
+            .getMetadata()
+            .getLabels()
+            .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(), null);
+    boolean initialServer =
+        replicaSet
+            .getMetadata()
+            .getLabels()
+            .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(), "false")
+            .equalsIgnoreCase("true");
+
     if (serverName == null) {
       return;
     }
@@ -103,9 +136,17 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
 
         if (loadBalancerNames.contains(serverName)
             || plugin.getProxy().getServer(serverName).isPresent()) {
-          plugin
-              .getLogger()
-              .info("Failed to add load balancer. Server name already occupied: " + serverName);
+
+          if (loadBalancerDeleteWaitQueues.containsKey(serverName)) {
+            ArrayDeque<String> queue = loadBalancerDeleteWaitQueues.get(serverName);
+            if (!queue.contains(uid)) {
+              queue.add(uid);
+            }
+          } else {
+            ArrayDeque<String> queue = new ArrayDeque<>();
+            queue.add(uid);
+            loadBalancerDeleteWaitQueues.put(serverName, queue);
+          }
           return;
         }
       }
@@ -113,7 +154,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
       kuvelServiceHandler.getReplicaSetUidAndServerNameMap().register(uid, serverName);
       jedis.hset(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName, uid, serverName);
 
-      redisConnectionLeader.publishNewLoadBalancer(uid, serverName);
+      redisConnectionLeader.publishNewLoadBalancer(uid, serverName, initialServer);
 
       RegisteredServer server =
           plugin
@@ -121,28 +162,65 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
               .registerServer(new ServerInfo(serverName, new InetSocketAddress("0.0.0.0", 0)));
 
       kuvelServiceHandler.registerLoadBalancer(
-          new LoadBalancer(plugin.getProxy(), server, new RoundRobinLoadBalancingStrategy(), uid));
+          new LoadBalancer(
+              plugin.getProxy(),
+              server,
+              new RoundRobinLoadBalancingStrategy(),
+              uid,
+              initialServer));
     }
   }
 
-  private void unregisterOrIgnore(ReplicaSet replicaSet) {
-    String uid = replicaSet.getMetadata().getUid();
-    if (kuvelServiceHandler.getReplicaSetUidAndServerNameMap().getServerNameFromUid(uid) == null) {
+  private void unregisterOrIgnore(String uid) {
+    String serverName =
+        kuvelServiceHandler.getReplicaSetUidAndServerNameMap().getServerNameFromUid(uid);
+
+    if (serverName == null) {
       return;
     }
 
     kuvelServiceHandler.unregisterLoadBalancer(uid);
-    // podUidAndServerNameMap.unregister(uid); // no need
-    redisConnectionLeader.publishDeletedLoadBalancer(replicaSet.getMetadata().getUid());
+    redisConnectionLeader.publishDeletedLoadBalancer(uid);
 
     try (Jedis jedis = jedisPool.getResource()) {
       jedis.hdel(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName, uid);
     }
+
+    ArrayDeque<String> nextUidQueue = loadBalancerDeleteWaitQueues.get(serverName);
+    if (nextUidQueue == null) {
+      return;
+    }
+
+    ReplicaSet nextReplicaSet = null;
+
+    while (!nextUidQueue.isEmpty() && nextReplicaSet == null) {
+      String nextUid = nextUidQueue.poll();
+      nextReplicaSet = getReplicaSetFromUid(nextUid);
+    }
+
+    if (nextReplicaSet == null) {
+      return;
+    }
+
+    final ReplicaSet finalNextReplicaSet = nextReplicaSet;
+
+    plugin
+        .getProxy()
+        .getScheduler()
+        .buildTask(plugin, () -> registerOrIgnore(finalNextReplicaSet))
+        .delay(0, TimeUnit.SECONDS)
+        .schedule();
   }
 
   @Override
   public void shutdown() {
-    serverDiscoveryExecutor.shutdownNow();
+    taskReference.getAndUpdate(
+        task -> {
+          if (task != null) {
+            task.cancel();
+          }
+          return null;
+        });
   }
 
   @Override
@@ -164,16 +242,12 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
             .apps()
             .replicaSets()
             .inAnyNamespace()
-            .withLabel(LabelKeys.SERVER_DISCOVERY.getKey(), "true")
-            .withLabel(LabelKeys.SERVER_NAME.getKey())
+            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
+            .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
             .list()
             .getItems()
             .stream()
-            .filter(
-                replicaSet ->
-                    replicaSet.getStatus().getReplicas() > 0
-                        || replicaSet.getStatus().getObservedGeneration() == null
-                        || replicaSet.getStatus().getObservedGeneration() <= 1)
+            .filter(replicaSet -> replicaSet.getStatus().getReplicas() > 0)
             .filter(
                 replicaSet ->
                     !uidAndServerNameMapInRedis.containsKey(replicaSet.getMetadata().getUid()))
@@ -199,29 +273,13 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
         .apps()
         .replicaSets()
         .inAnyNamespace()
-        .withLabel(LabelKeys.SERVER_DISCOVERY.getKey(), "true")
-        .withLabel(LabelKeys.SERVER_NAME.getKey())
+        .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
+        .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
         .list()
         .getItems()
         .stream()
         .filter(replicaSet -> replicaSet.getMetadata().getUid().equals(uid))
         .findAny()
         .orElse(null);
-  }
-
-  private void run(ExecutorService service, Runnable runnable) {
-    service.submit(runnable);
-    for (int i = 0; i < 1000; i++) {
-      service.submit(
-          () -> {
-            try {
-              Thread.sleep(3000);
-            } catch (InterruptedException e) {
-              Thread.currentThread().interrupt();
-            }
-
-            runnable.run();
-          });
-    }
   }
 }

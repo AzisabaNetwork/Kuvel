@@ -1,11 +1,10 @@
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
 redis:
-  enable: false
   group-name: "production"
   connection:
-    hostname: "localhost"
+    hostname: "redis"
     port: 6379
     # username is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
-    username: "root"
+    username: "default"
     # password is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
     password: "password"

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.params.SetParams;
 
 @RequiredArgsConstructor
 public class ProxyIdProvider {
@@ -16,23 +17,24 @@ public class ProxyIdProvider {
   private String id;
 
   public String getId() {
-    if (id == null) {
-      String idTmp = RandomStringUtils.randomAlphanumeric(8);
+    if (id != null) {
+      return id;
+    }
 
-      try (Jedis jedis = jedisPool.getResource()) {
-        while (true) {
-          String key = RedisKeys.PROXY_ID_PREFIX.getKey() + groupName + ":" + idTmp;
-          long result = jedis.setnx(key, "true");
+    try (Jedis jedis = jedisPool.getResource()) {
+      String idTmp = null;
+      while (idTmp == null) {
+        idTmp = RandomStringUtils.randomAlphanumeric(8);
+        String key = RedisKeys.PROXY_ID_PREFIX.getKey() + groupName + ":" + idTmp;
 
-          if (result == 1) {
-            jedis.expire(key, 600);
-            id = idTmp;
-            break;
-          }
+        String result = jedis.set(key, "using", SetParams.setParams().nx().ex(300));
 
-          idTmp = RandomStringUtils.randomAlphanumeric(8);
+        if (result == null) {
+          idTmp = null;
         }
       }
+
+      id = idTmp;
     }
     return id;
   }
@@ -44,14 +46,18 @@ public class ProxyIdProvider {
             plugin,
             () -> {
               try (Jedis jedis = jedisPool.getResource()) {
-                jedis.expire(RedisKeys.PROXY_ID_PREFIX.getKey() + groupName + ":" + id, 600);
+                jedis.expire(RedisKeys.PROXY_ID_PREFIX.getKey() + groupName + ":" + id, 300);
               }
             })
-        .repeat(5, TimeUnit.MINUTES)
+        .repeat(2, TimeUnit.MINUTES)
         .schedule();
   }
 
   public void deleteProxyId() {
+    if (id == null) {
+      return;
+    }
+
     try (Jedis jedis = jedisPool.getResource()) {
       jedis.del(RedisKeys.PROXY_ID_PREFIX.getKey() + groupName + ":" + id);
     }
