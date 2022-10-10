@@ -64,11 +64,14 @@ spec:
  ```
 
 ## Enable Service Discovery on the Minecraft Servers
+
 To tell Kuvel that the pod is a Minecraft server, use Label feature of Kubernetes.
-|Label Name| Value |
-|:---:|:---:|
-|minecraftServiceDiscovery|true / false|
-|minecraftServerName|Name of the server you wish to register with Velocity|
+
+|                Label Name                 | Value |
+|:-----------------------------------------:|:---:|
+| kuvel.azisaba.net/enable-server-discovery |true / false|
+|  kuvel.azisaba.net/preferred-server-name  |Name of the server you wish to register with Velocity|
+|     kuvel.azisaba.net/initial-server      |true / false|
 
 ### Pod
 

@@ -58,11 +58,14 @@ spec:
  ```
 
 ## MinecraftサーバーのServiceDiscoveryを設定する
+
 PodがMinecraftサーバーであることをKuvelに示すには、Kubernetesのラベル機能を使用します
-|Label名|値|
-|:---:|:---:|
-|minecraftServiceDiscovery|true / false|
-|minecraftServerName|Velocityに登録したいサーバー名|
+
+|          Label名           |値|
+|:-------------------------:|:---:|
+| kuvel.azisaba.net/enable-server-discovery |true / false|
+|  kuvel.azisaba.net/preferred-server-name  |Velocityに登録したいサーバー名|
+|     kuvel.azisaba.net/initial-server      |true / false|
 
 ### Podの場合
 
