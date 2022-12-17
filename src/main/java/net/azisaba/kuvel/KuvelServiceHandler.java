@@ -158,6 +158,12 @@ public class KuvelServiceHandler {
         InetSocketAddress address = new InetSocketAddress(pod.getStatus().getPodIP(), 25565);
         plugin.getProxy().registerServer(new ServerInfo(entry.getKey(), address));
 
+        String initialServerStr = pod.getMetadata().getLabels()
+            .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(), "false");
+        if (Boolean.parseBoolean(initialServerStr)) {
+          initialServerNames.add(entry.getKey());
+        }
+
         for (LoadBalancer loadBalancer : loadBalancerServerMap.values()) {
           if (pod.hasOwnerReferenceFor(loadBalancer.getReplicaSetUid())) {
             loadBalancer.addEndpoint(entry.getKey());
