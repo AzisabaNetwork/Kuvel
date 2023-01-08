@@ -5,6 +5,7 @@ import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
+import io.fabric8.kubernetes.client.dsl.PodResource;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
@@ -51,8 +52,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
 
     Runnable runnable =
         () -> {
-          FilterWatchListDeletable<Pod, PodList> request = client
-              .pods()
+          FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
               .inAnyNamespace();
 
           for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
@@ -115,8 +115,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
         Map<String, String> loadBalancerMap =
             jedis.hgetAll(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName);
 
-        FilterWatchListDeletable<Pod, PodList> request = client
-            .pods()
+        FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
             .inAnyNamespace();
 
         for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
@@ -278,8 +277,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
   }
 
   private Pod getPodByUid(String podUid) {
-    FilterWatchListDeletable<Pod, PodList> request = client
-        .pods()
+    FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
         .inAnyNamespace();
 
     for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {

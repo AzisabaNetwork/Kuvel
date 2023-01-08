@@ -6,6 +6,7 @@ import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
+import io.fabric8.kubernetes.client.dsl.PodResource;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -125,8 +126,7 @@ public class KuvelServiceHandler {
    */
   private void updateLoadBalancerEndpoints(LoadBalancer loadBalancer) {
     // TODO: This may be replaced by more improved function
-    FilterWatchListDeletable<Pod, PodList> request = client
-        .pods()
+    FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
         .inAnyNamespace();
 
     for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
@@ -267,8 +267,7 @@ public class KuvelServiceHandler {
    * @param serverName The name of the server.
    */
   public void registerPod(String podUid, String serverName) {
-    FilterWatchListDeletable<Pod, PodList> request = client
-        .pods()
+    FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
         .inAnyNamespace();
 
     for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {

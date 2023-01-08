@@ -6,8 +6,8 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.proxy.ProxyServer;
-import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -52,7 +52,8 @@ public class Kuvel {
 
   @Subscribe
   public void onProxyInitialization(ProxyInitializeEvent event) {
-    client = new DefaultKubernetesClient();
+    Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
+    client = new KubernetesClientBuilder().build();
 
     kuvelConfig = new KuvelConfig(this);
     try {

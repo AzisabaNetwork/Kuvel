@@ -7,6 +7,7 @@ import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
 import io.fabric8.kubernetes.api.model.apps.ReplicaSetList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
+import io.fabric8.kubernetes.client.dsl.RollableScalableResource;
 import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.Collection;
@@ -54,10 +55,8 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
 
     Runnable runnable =
         () -> {
-          FilterWatchListDeletable<ReplicaSet, ReplicaSetList> request = client
-              .apps()
-              .replicaSets()
-              .inAnyNamespace();
+          FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
+              .replicaSets().inAnyNamespace();
 
           for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
             request = request.withLabel(e.getKey(), e.getValue());
@@ -242,10 +241,8 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
           registerOrIgnore(replicaSet, true);
         }
 
-        FilterWatchListDeletable<ReplicaSet, ReplicaSetList> request = client
-            .apps()
-            .replicaSets()
-            .inAnyNamespace();
+        FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
+            .replicaSets().inAnyNamespace();
 
         for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
           request = request.withLabel(e.getKey(), e.getValue());
@@ -275,10 +272,8 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
   }
 
   private ReplicaSet getReplicaSetFromUid(String uid) {
-    FilterWatchListDeletable<ReplicaSet, ReplicaSetList> request = client
-        .apps()
-        .replicaSets()
-        .inAnyNamespace();
+    FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
+        .replicaSets().inAnyNamespace();
 
     for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
       request = request.withLabel(e.getKey(), e.getValue());
