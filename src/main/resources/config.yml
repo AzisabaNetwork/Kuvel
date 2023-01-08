@@ -1,6 +1,6 @@
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
 redis:
-  group-name: "production"
+  group-name: "develop"
   connection:
     hostname: "redis"
     port: 6379
@@ -8,6 +8,7 @@ redis:
     username: "default"
     # password is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
     password: "password"
+
+# label-selectors are used to filter Pods and ReplicaSets to be registered.
 label-selectors:
   - "kuvel.azisaba.net/enable-server-discovery=true"
-  - "stage=develop"

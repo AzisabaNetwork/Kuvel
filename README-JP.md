@@ -17,12 +17,16 @@ Pluginは [Releases](https://github.com/AzisabaNetwork/Kuvel/releases/latest)
 
 ```yml
 redis:
-  group-name: "production" # Redisサーバーが同じかつgroup-nameが同じサーバー間でのみ名前同期が行われます
+  group-name: "develop" # Redisサーバーが同じかつgroup-nameが同じサーバー間でのみ名前同期が行われます
   connection:
     hostname: "redis"
     port: 6379
     username: "default"
     password: "password"
+
+# label-selectors は登録するPodとReplicaSetを指定するために使用します
+label-selectors:
+  - "kuvel.azisaba.net/enable-server-discovery=true"
 ```
 
 Kuvelがサーバーを監視するためには、Kubernetesに対して権限を要求しなければなりません。VelocityのPodに対してPodとReplicaSetのget/list/watchを許可してください
@@ -59,13 +63,16 @@ spec:
 
 ## MinecraftサーバーのServiceDiscoveryを設定する
 
-PodがMinecraftサーバーであることをKuvelに示すには、Kubernetesのラベル機能を使用します
+PodがMinecraftサーバーであることをKuvelに示すには、Kubernetesのラベル機能を使用します  
+labelはconfigで指定します。デフォルトでは、`kuvel.azisaba.net/enable-server-discovery` の値が `true`
+となっているPodとReplicaSetが登録されます。
 
-|          Label名           |値|
-|:-------------------------:|:---:|
-| kuvel.azisaba.net/enable-server-discovery |true / false|
-|  kuvel.azisaba.net/preferred-server-name  |Velocityに登録したいサーバー名|
-|     kuvel.azisaba.net/initial-server      |true / false|
+また、一部の機能を使用するために以下のlabelを使用します。
+
+|                 Label名                  |          値          |
+|:---------------------------------------:|:-------------------:|
+| kuvel.azisaba.net/preferred-server-name | Velocityに登録したいサーバー名 |
+|    kuvel.azisaba.net/initial-server     |    true / false     |
 
 ### Podの場合
 
@@ -75,7 +82,7 @@ kind: Pod
 metadata:
   name: test-server
   labels:
-    kuvel.azisaba.net/enable-server-discovery: "true" # KuvelがMinecraftサーバーを見つけるために必要
+    kuvel.azisaba.net/enable-server-discovery: "true" # KuvelがMinecraftサーバーを見つけるために必要 (Configに依存)
     kuvel.azisaba.net/preferred-server-name: "test-server" # Kuvelがサーバーの命名をするために必要
 spec:
   containers:
@@ -100,7 +107,7 @@ spec:
     metadata:
       labels:
         app: test-server-deployment
-        kuvel.azisaba.net/enable-server-discovery: "true" # KuvelがMinecraftサーバーを見つけるために必要
+        kuvel.azisaba.net/enable-server-discovery: "true" # KuvelがMinecraftサーバーを見つけるために必要 (Configに依存)
         kuvel.azisaba.net/preferred-server-name: "test-server" # Kuvelがサーバーの命名をするために必要
     spec:
       containers:

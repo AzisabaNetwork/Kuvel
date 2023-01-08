@@ -19,7 +19,7 @@ install it into Velocity plugins directory. Also, you have to fill in the config
 ```yml
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
 redis:
-  group-name: "production"
+  group-name: "develop"
   connection:
     hostname: "redis"
     port: 6379
@@ -27,6 +27,10 @@ redis:
     username: "default"
     # password is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
     password: "password"
+
+# label-selectors are used to filter Pods and ReplicaSets to be registered.
+label-selectors:
+  - "kuvel.azisaba.net/enable-server-discovery=true"
 ```
 
 In order for Kuvel to monitor the server, you must request permission from Kubernetes to allow
@@ -65,13 +69,16 @@ spec:
 
 ## Enable Service Discovery on the Minecraft Servers
 
-To tell Kuvel that the pod is a Minecraft server, use Label feature of Kubernetes.
+To tell Kuvel that the pod is a Minecraft server, use Label feature of Kubernetes.  
+The label keys and values are specified in the config file. In default config, the label key
+is `kuvel.azisaba.net/enable-server-discovery` and the value is `true`.
 
-|                Label Name                 | Value |
-|:-----------------------------------------:|:---:|
-| kuvel.azisaba.net/enable-server-discovery |true / false|
-|  kuvel.azisaba.net/preferred-server-name  |Name of the server you wish to register with Velocity|
-|     kuvel.azisaba.net/initial-server      |true / false|
+The following other labels are implemented for some features.
+
+|               Label Name                |                         Value                         |
+|:---------------------------------------:|:-----------------------------------------------------:|
+| kuvel.azisaba.net/preferred-server-name | Name of the server you wish to register with Velocity |
+|    kuvel.azisaba.net/initial-server     |                     true / false                      |
 
 ### Pod
 
@@ -81,7 +88,7 @@ kind: Pod
 metadata:
   name: test-server
   labels:
-    kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers.
+    kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers. Depends on your config.
     kuvel.azisaba.net/preferred-server-name: : "test-server" # Required for Kuvel to name the server
     # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this server the initial server.   
 spec:
@@ -107,7 +114,7 @@ spec:
     metadata:
       labels:
         app: test-server-deployment
-        kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers.
+        kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers. Depends on your config.
         kuvel.azisaba.net/preferred-server-name: "test-server" # Required for Kuvel to name the server
         # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this server the initial server.
     spec:
