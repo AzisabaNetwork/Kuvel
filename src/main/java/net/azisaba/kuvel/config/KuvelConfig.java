@@ -2,6 +2,8 @@ package net.azisaba.kuvel.config;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Locale;
 import javax.annotation.Nullable;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -17,8 +19,11 @@ public class KuvelConfig {
   private static final String CONFIG_FILE_PATH = "./plugins/Kuvel/config.yml";
 
   private boolean redisEnabled;
-  @Nullable private RedisConnectionData redisConnectionData;
-  @Nullable private String proxyGroupName;
+  @Nullable
+  private RedisConnectionData redisConnectionData;
+  @Nullable
+  private String proxyGroupName;
+  private final HashMap<String, String> labelSelectors = new HashMap<>();
 
   public void load() throws IOException {
     VelocityConfigLoader conf = VelocityConfigLoader.load(new File(CONFIG_FILE_PATH));
@@ -40,5 +45,14 @@ public class KuvelConfig {
     }
 
     proxyGroupName = conf.getString("redis.group-name", null);
+
+    if (conf.isSet("label-selectors")) {
+      conf.getStringList("label-selectors").forEach(s -> {
+        String[] split = s.split("=", 2);
+        if (split.length == 2) {
+          labelSelectors.put(split[0].toLowerCase(Locale.ROOT), split[1].toLowerCase(Locale.ROOT));
+        }
+      });
+    }
   }
 }

@@ -8,6 +8,7 @@ import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.proxy.ProxyServer;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -24,7 +25,7 @@ import net.azisaba.kuvel.redis.RedisSubscriberExecutor;
 @Plugin(
     id = "kuvel",
     name = "Kuvel",
-    version = "2.0.1",
+    version = "3.0.0-rc",
     url = "https://github.com/AzisabaNetwork/Kuvel",
     description =
         "Server-discovery Velocity plugin for Minecraft servers running in a Kubernetes cluster.",
@@ -60,6 +61,16 @@ public class Kuvel {
       logger.severe("Failed to load config file. Plugin feature will be disabled.");
       e.printStackTrace();
       return;
+    }
+
+    if (kuvelConfig.getLabelSelectors().isEmpty()) {
+      logger.severe("No label selectors are specified. Plugin feature will be disabled.");
+      return;
+    }
+
+    getLogger().info("Loaded " + kuvelConfig.getLabelSelectors().size() + " selectors:");
+    for (Entry<String, String> entry : kuvelConfig.getLabelSelectors().entrySet()) {
+      getLogger().info(" - " + entry.getKey() + ": " + entry.getValue());
     }
 
     kuvelServiceHandler = new KuvelServiceHandler(this, client);

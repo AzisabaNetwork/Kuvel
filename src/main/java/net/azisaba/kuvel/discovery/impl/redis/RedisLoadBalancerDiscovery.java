@@ -4,13 +4,16 @@ import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
 import com.velocitypowered.api.scheduler.ScheduledTask;
 import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
+import io.fabric8.kubernetes.api.model.apps.ReplicaSetList;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
 import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -51,15 +54,16 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
 
     Runnable runnable =
         () -> {
-          List<ReplicaSet> replicaSetList =
-              client
-                  .apps()
-                  .replicaSets()
-                  .inAnyNamespace()
-                  .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
-                  .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
-                  .list()
-                  .getItems();
+          FilterWatchListDeletable<ReplicaSet, ReplicaSetList> request = client
+              .apps()
+              .replicaSets()
+              .inAnyNamespace();
+
+          for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+            request = request.withLabel(e.getKey(), e.getValue());
+          }
+
+          List<ReplicaSet> replicaSetList = request.list().getItems();
 
           for (ReplicaSet replicaSet : replicaSetList) {
             if (replicaSetDiffChecker.diff(replicaSet)) {
@@ -238,19 +242,21 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
           registerOrIgnore(replicaSet, true);
         }
 
-        client
+        FilterWatchListDeletable<ReplicaSet, ReplicaSetList> request = client
             .apps()
             .replicaSets()
-            .inAnyNamespace()
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
-            .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
-            .list()
+            .inAnyNamespace();
+
+        for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+          request = request.withLabel(e.getKey(), e.getValue());
+        }
+
+        request.list()
             .getItems()
             .stream()
             .filter(replicaSet -> replicaSet.getStatus().getReplicas() > 0)
-            .filter(
-                replicaSet ->
-                    !uidAndServerNameMapInRedis.containsKey(replicaSet.getMetadata().getUid()))
+            .filter(replicaSet ->
+                !uidAndServerNameMapInRedis.containsKey(replicaSet.getMetadata().getUid()))
             .forEach(this::registerOrIgnore);
       }
     } else {
@@ -269,12 +275,16 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
   }
 
   private ReplicaSet getReplicaSetFromUid(String uid) {
-    return client
+    FilterWatchListDeletable<ReplicaSet, ReplicaSetList> request = client
         .apps()
         .replicaSets()
-        .inAnyNamespace()
-        .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
-        .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
+        .inAnyNamespace();
+
+    for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+      request = request.withLabel(e.getKey(), e.getValue());
+    }
+
+    return request
         .list()
         .getItems()
         .stream()

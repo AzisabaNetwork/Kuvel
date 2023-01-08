@@ -8,3 +8,6 @@ redis:
     username: "default"
     # password is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
     password: "password"
+label-selectors:
+  - "kuvel.azisaba.net/enable-server-discovery=true"
+  - "stage=develop"

@@ -2,7 +2,9 @@ package net.azisaba.kuvel.discovery.impl.redis;
 
 import com.velocitypowered.api.scheduler.ScheduledTask;
 import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodList;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
@@ -49,13 +51,15 @@ public class RedisServerDiscovery implements ServerDiscovery {
 
     Runnable runnable =
         () -> {
-          List<Pod> podList =
-              client
-                  .pods()
-                  .inAnyNamespace()
-                  .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
-                  .list()
-                  .getItems();
+          FilterWatchListDeletable<Pod, PodList> request = client
+              .pods()
+              .inAnyNamespace();
+
+          for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+            request = request.withLabel(e.getKey(), e.getValue());
+          }
+
+          List<Pod> podList = request.list().getItems();
 
           for (Pod pod : podList) {
             if (podDiffChecker.diff(pod)) {
@@ -111,10 +115,15 @@ public class RedisServerDiscovery implements ServerDiscovery {
         Map<String, String> loadBalancerMap =
             jedis.hgetAll(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName);
 
-        client
+        FilterWatchListDeletable<Pod, PodList> request = client
             .pods()
-            .inAnyNamespace()
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
+            .inAnyNamespace();
+
+        for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+          request = request.withLabel(e.getKey(), e.getValue());
+        }
+
+        request
             .withField("status.phase", "Running")
             .list()
             .getItems()
@@ -269,7 +278,15 @@ public class RedisServerDiscovery implements ServerDiscovery {
   }
 
   private Pod getPodByUid(String podUid) {
-    return client.pods().list().getItems().stream()
+    FilterWatchListDeletable<Pod, PodList> request = client
+        .pods()
+        .inAnyNamespace();
+
+    for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+      request = request.withLabel(e.getKey(), e.getValue());
+    }
+
+    return request.list().getItems().stream()
         .filter(pod -> pod.getMetadata().getUid().equals(podUid))
         .findFirst()
         .orElse(null);

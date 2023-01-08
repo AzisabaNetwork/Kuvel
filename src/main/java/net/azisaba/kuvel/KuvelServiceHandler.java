@@ -1,8 +1,11 @@
 package net.azisaba.kuvel;
 
+import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
 import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodList;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -122,13 +125,15 @@ public class KuvelServiceHandler {
    */
   private void updateLoadBalancerEndpoints(LoadBalancer loadBalancer) {
     // TODO: This may be replaced by more improved function
-    List<Pod> pods =
-        client
-            .pods()
-            .inAnyNamespace()
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
-            .list()
-            .getItems();
+    FilterWatchListDeletable<Pod, PodList> request = client
+        .pods()
+        .inAnyNamespace();
+
+    for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+      request = request.withLabel(e.getKey(), e.getValue());
+    }
+
+    List<Pod> pods = request.list().getItems();
 
     List<String> endpoints = new ArrayList<>();
     for (Pod pod : pods) {
@@ -154,9 +159,24 @@ public class KuvelServiceHandler {
       HashMap<String, Pod> servers = newServerDiscovery.getServersForStartup();
 
       for (Entry<String, Pod> entry : servers.entrySet()) {
+        String serverName = entry.getKey();
         Pod pod = entry.getValue();
+
+        Optional<RegisteredServer> server = plugin.getProxy().getServer(serverName);
+        if (server.isPresent()) {
+          String hostName = server.get().getServerInfo().getAddress().getHostName();
+          if (hostName.equals(pod.getStatus().getPodIP())) {
+            continue;
+          }
+          plugin.getProxy().unregisterServer(server.get().getServerInfo());
+        }
+
         InetSocketAddress address = new InetSocketAddress(pod.getStatus().getPodIP(), 25565);
         plugin.getProxy().registerServer(new ServerInfo(entry.getKey(), address));
+        if (plugin.getRedisConnectionLeader().isLeader()) {
+          plugin.getRedisConnectionLeader()
+              .publishNewServer(entry.getValue().getMetadata().getUid(), entry.getKey());
+        }
 
         String initialServerStr = pod.getMetadata().getLabels()
             .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(), "false");
@@ -247,16 +267,20 @@ public class KuvelServiceHandler {
    * @param serverName The name of the server.
    */
   public void registerPod(String podUid, String serverName) {
-    Optional<Pod> pod =
-        client
-            .pods()
-            .inAnyNamespace()
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
-            .list()
-            .getItems()
-            .stream()
-            .filter(p -> p.getMetadata().getUid().equals(podUid))
-            .findFirst();
+    FilterWatchListDeletable<Pod, PodList> request = client
+        .pods()
+        .inAnyNamespace();
+
+    for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+      request = request.withLabel(e.getKey(), e.getValue());
+    }
+
+    Optional<Pod> pod = request
+        .list()
+        .getItems()
+        .stream()
+        .filter(p -> p.getMetadata().getUid().equals(podUid))
+        .findFirst();
 
     pod.ifPresent(p -> registerPod(p, serverName));
   }

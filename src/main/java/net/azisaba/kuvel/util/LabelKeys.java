@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum LabelKeys {
-  ENABLE_SERVER_DISCOVERY("enable-server-discovery"),
   PREFERRED_SERVER_NAME("preferred-server-name"),
   INITIAL_SERVER("initial-server");
 
