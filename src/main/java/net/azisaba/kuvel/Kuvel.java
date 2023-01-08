@@ -52,8 +52,13 @@ public class Kuvel {
 
   @Subscribe
   public void onProxyInitialization(ProxyInitializeEvent event) {
-    Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
-    client = new KubernetesClientBuilder().build();
+    ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+    try {
+      Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
+      client = new KubernetesClientBuilder().build();
+    } finally {
+      Thread.currentThread().setContextClassLoader(originalClassLoader);
+    }
 
     kuvelConfig = new KuvelConfig(this);
     try {
