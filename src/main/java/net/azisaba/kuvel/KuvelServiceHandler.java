@@ -156,40 +156,16 @@ public class KuvelServiceHandler {
    */
   public void setAndRunServerDiscovery(@Nullable ServerDiscovery newServerDiscovery) {
     if (newServerDiscovery != null) {
-      HashMap<String, Pod> servers = newServerDiscovery.getServersForStartup();
-
-      for (Entry<String, Pod> entry : servers.entrySet()) {
-        String serverName = entry.getKey();
-        Pod pod = entry.getValue();
-
-        Optional<RegisteredServer> server = plugin.getProxy().getServer(serverName);
-        if (server.isPresent()) {
-          String hostName = server.get().getServerInfo().getAddress().getHostName();
-          if (hostName.equals(pod.getStatus().getPodIP())) {
-            continue;
-          }
-          plugin.getProxy().unregisterServer(server.get().getServerInfo());
-        }
-
-        InetSocketAddress address = new InetSocketAddress(pod.getStatus().getPodIP(), 25565);
-        plugin.getProxy().registerServer(new ServerInfo(entry.getKey(), address));
-        if (plugin.getRedisConnectionLeader().isLeader()) {
-          plugin.getRedisConnectionLeader()
-              .publishNewServer(entry.getValue().getMetadata().getUid(), entry.getKey());
-        }
-
-        String initialServerStr = pod.getMetadata().getLabels()
-            .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(), "false");
-        if (Boolean.parseBoolean(initialServerStr)) {
-          initialServerNames.add(entry.getKey());
-        }
-
-        for (LoadBalancer loadBalancer : loadBalancerServerMap.values()) {
-          if (pod.hasOwnerReferenceFor(loadBalancer.getReplicaSetUid())) {
-            loadBalancer.addEndpoint(entry.getKey());
-          }
-        }
-      }
+      newServerDiscovery.getServersForStartup()
+          .forEach((serverName, pod) -> {
+            boolean success = registerPod(pod, serverName);
+            if (!success) {
+              plugin.getLogger().warning("Failed to register pod. ( "
+                  + "serverName = " + serverName + ", "
+                  + "pod = " + pod.getMetadata().getUid()
+                  + " )");
+            }
+          });
 
       newServerDiscovery.start();
     }
