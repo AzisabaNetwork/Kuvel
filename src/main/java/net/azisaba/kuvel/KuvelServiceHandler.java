@@ -1,7 +1,8 @@
 package net.azisaba.kuvel;
 
-import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
+import io.fabric8.kubernetes.api.model.Container;
+import io.fabric8.kubernetes.api.model.ContainerPort;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodList;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -220,6 +221,19 @@ public class KuvelServiceHandler {
     if (ip == null) {
       return false;
     }
+
+    int port = 25565;
+    Optional<ContainerPort> containerPort = pod.getSpec().getContainers().stream()
+        .map(Container::getPorts)
+        .flatMap(List::stream)
+        .filter(p -> p.getName() != null && p.getName().equalsIgnoreCase("minecraft"))
+        .findFirst();
+
+    if (containerPort.isPresent()) {
+      port = containerPort.get().getContainerPort();
+    }
+
+    InetSocketAddress address = new InetSocketAddress(ip, port);
     plugin.getProxy().registerServer(new ServerInfo(serverName, address));
     podUidAndServerNameMap.register(pod.getMetadata().getUid(), serverName);
 
