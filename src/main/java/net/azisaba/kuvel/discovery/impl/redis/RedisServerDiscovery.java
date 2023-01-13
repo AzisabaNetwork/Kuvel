@@ -251,10 +251,19 @@ public class RedisServerDiscovery implements ServerDiscovery {
                       && plugin.getProxy().getServer(name).isEmpty());
 
       kuvelServiceHandler.getPodUidAndServerNameMap().register(uid, serverName);
-      jedis.hset(RedisKeys.SERVERS_PREFIX.getKey() + groupName, uid, serverName);
 
-      redisConnectionLeader.publishNewServer(uid, serverName);
-      kuvelServiceHandler.registerPod(pod, serverName);
+      boolean success = false;
+      try {
+        success = kuvelServiceHandler.registerPod(pod, serverName);
+        if (success) {
+          redisConnectionLeader.publishNewServer(uid, serverName);
+          jedis.hset(RedisKeys.SERVERS_PREFIX.getKey() + groupName, uid, serverName);
+        }
+      } finally {
+        if (!success) {
+          kuvelServiceHandler.getPodUidAndServerNameMap().unregister(uid);
+        }
+      }
     }
   }
 

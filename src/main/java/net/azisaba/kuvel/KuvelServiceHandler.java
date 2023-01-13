@@ -235,11 +235,15 @@ public class KuvelServiceHandler {
   /**
    * Register a pod for the specified server name.
    *
-   * @param pod The pod to register.
+   * @param pod        The pod to register.
    * @param serverName The name of the server.
+   * @return true if the pod is registered successfully.
    */
-  public void registerPod(Pod pod, String serverName) {
-    InetSocketAddress address = new InetSocketAddress(pod.getStatus().getPodIP(), 25565);
+  public boolean registerPod(Pod pod, String serverName) {
+    String ip = pod.getStatus().getPodIP();
+    if (ip == null) {
+      return false;
+    }
     plugin.getProxy().registerServer(new ServerInfo(serverName, address));
     podUidAndServerNameMap.register(pod.getMetadata().getUid(), serverName);
 
@@ -258,6 +262,7 @@ public class KuvelServiceHandler {
     plugin
         .getLogger()
         .info("Registered server: " + serverName + " (" + pod.getMetadata().getUid() + ")");
+    return true;
   }
 
   /**
