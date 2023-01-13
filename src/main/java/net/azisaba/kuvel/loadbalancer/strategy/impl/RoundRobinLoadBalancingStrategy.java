@@ -21,14 +21,4 @@ public class RoundRobinLoadBalancingStrategy implements LoadBalancingStrategy {
     }
     return servers.get(lastIndex);
   }
-
-  //  @Override
-  //  public List<RegisteredServer> choose(List<RegisteredServer> servers, int count) {
-  //    List<RegisteredServer> chosenServers = new ArrayList<>();
-  //    for (int i = 0; i < count; i++) {
-  //      chosenServers.add(choose(servers));
-  //    }
-  //
-  //    return chosenServers;
-  //  }
 }

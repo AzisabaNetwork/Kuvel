@@ -13,7 +13,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -311,23 +310,5 @@ public class RedisServerDiscovery implements ServerDiscovery {
       i++;
     }
     return name;
-  }
-
-  private Runnable getDelayRunnable(ExecutorService executor, Runnable runnable) {
-    return () -> {
-      try {
-        Thread.sleep(3000);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
-
-      try {
-        runnable.run();
-      } catch (Exception ex) {
-        ex.printStackTrace();
-      } finally {
-        executor.submit(getDelayRunnable(executor, runnable));
-      }
-    };
   }
 }
