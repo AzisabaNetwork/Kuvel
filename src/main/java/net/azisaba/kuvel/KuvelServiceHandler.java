@@ -156,6 +156,7 @@ public class KuvelServiceHandler {
       for (Entry<String, Pod> entry : servers.entrySet()) {
         Pod pod = entry.getValue();
         InetSocketAddress address = new InetSocketAddress(pod.getStatus().getPodIP(), 25565);
+        plugin.getProxy().getServer(entry.getKey()).ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
         plugin.getProxy().registerServer(new ServerInfo(entry.getKey(), address));
 
         String initialServerStr = pod.getMetadata().getLabels()
