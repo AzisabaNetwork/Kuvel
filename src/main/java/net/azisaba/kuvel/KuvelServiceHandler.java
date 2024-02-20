@@ -161,8 +161,8 @@ public class KuvelServiceHandler {
           .forEach((serverName, pod) -> {
             boolean success = registerPod(pod, serverName);
             if (!success) {
-              plugin.getProxy().getServer(entry.getKey()).ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
-        plugin.getLogger().warning("Failed to register pod. ( "
+              plugin.getProxy().getServer(serverName).ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
+              plugin.getLogger().warning("Failed to register pod. ( "
                   + "serverName = " + serverName + ", "
                   + "pod = " + pod.getMetadata().getUid()
                   + " )");
