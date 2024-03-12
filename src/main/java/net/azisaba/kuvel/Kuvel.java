@@ -5,9 +5,13 @@ import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Plugin;
+import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
+
+import java.io.File;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -34,6 +38,7 @@ public class Kuvel {
 
   private final ProxyServer proxy;
   private final Logger logger;
+  private final File dataDirectory;
 
   private KubernetesClient client;
   private KuvelServiceHandler kuvelServiceHandler;
@@ -44,9 +49,10 @@ public class Kuvel {
   private KuvelConfig kuvelConfig;
 
   @Inject
-  public Kuvel(ProxyServer server, Logger logger) {
+  public Kuvel(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
     this.proxy = server;
     this.logger = logger;
+    this.dataDirectory = dataDirectory.toFile();
   }
 
   @Subscribe
