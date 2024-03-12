@@ -17,6 +17,8 @@ from [Releases](https://github.com/AzisabaNetwork/Kuvel/releases/latest). Downlo
 install it into Velocity plugins directory. Also, you have to fill in the configuration file.
 
 ```yml
+# The kubernetes namespace to use for the server discovery.
+namespace: ""
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
 redis:
   group-name: "production"

@@ -24,7 +24,7 @@ import net.azisaba.kuvel.redis.RedisSubscriberExecutor;
 @Plugin(
     id = "kuvel",
     name = "Kuvel",
-    version = "2.0.2",
+    version = "2.1.0",
     url = "https://github.com/AzisabaNetwork/Kuvel",
     description =
         "Server-discovery Velocity plugin for Minecraft servers running in a Kubernetes cluster.",
@@ -62,7 +62,7 @@ public class Kuvel {
       return;
     }
 
-    kuvelServiceHandler = new KuvelServiceHandler(this, client);
+    kuvelServiceHandler = new KuvelServiceHandler(this, client, kuvelConfig.getNamespace());
 
     Objects.requireNonNull(kuvelConfig.getRedisConnectionData());
     Objects.requireNonNull(kuvelConfig.getProxyGroupName());
@@ -88,6 +88,7 @@ public class Kuvel {
         new RedisLoadBalancerDiscovery(
             client,
             this,
+            kuvelConfig.getNamespace(),
             kuvelConfig.getRedisConnectionData().createJedisPool(),
             kuvelConfig.getProxyGroupName(),
             redisConnectionLeader,
@@ -97,6 +98,7 @@ public class Kuvel {
         new RedisServerDiscovery(
             client,
             this,
+            kuvelConfig.getNamespace(),
             kuvelConfig.getRedisConnectionData().createJedisPool(),
             kuvelConfig.getProxyGroupName(),
             redisConnectionLeader,

@@ -16,6 +16,7 @@ public class KuvelConfig {
 
   private static final String CONFIG_FILE_PATH = "./plugins/Kuvel/config.yml";
 
+  @Nullable private String namespace;
   private boolean redisEnabled;
   @Nullable private RedisConnectionData redisConnectionData;
   @Nullable private String proxyGroupName;
@@ -23,6 +24,8 @@ public class KuvelConfig {
   public void load() throws IOException {
     VelocityConfigLoader conf = VelocityConfigLoader.load(new File(CONFIG_FILE_PATH));
     conf.saveDefaultConfig();
+
+    namespace = conf.getString("namespace", null);
 
     String hostname = conf.getString("redis.connection.hostname");
     int port = conf.getInt("redis.connection.port", -1);

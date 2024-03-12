@@ -25,6 +25,7 @@ public class KuvelServiceHandler {
 
   private final Kuvel plugin;
   private final KubernetesClient client;
+  private final String namespace;
   private final HashMap<String, LoadBalancer> loadBalancerServerMap = new HashMap<>();
 
   private final UidAndServerNameMap podUidAndServerNameMap = new UidAndServerNameMap();
@@ -125,7 +126,7 @@ public class KuvelServiceHandler {
     List<Pod> pods =
         client
             .pods()
-            .inAnyNamespace()
+            .inNamespace(namespace)
             .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
             .list()
             .getItems();
@@ -251,7 +252,7 @@ public class KuvelServiceHandler {
     Optional<Pod> pod =
         client
             .pods()
-            .inAnyNamespace()
+            .inNamespace(namespace)
             .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
             .list()
             .getItems()

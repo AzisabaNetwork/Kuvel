@@ -32,6 +32,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
 
   private final KubernetesClient client;
   private final Kuvel plugin;
+  private final String namespace;
   private final JedisPool jedisPool;
   private final String groupName;
   private final RedisConnectionLeader redisConnectionLeader;
@@ -52,7 +53,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
           List<Pod> podList =
               client
                   .pods()
-                  .inAnyNamespace()
+                  .inNamespace(namespace)
                   .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
                   .list()
                   .getItems();
@@ -113,7 +114,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
 
         client
             .pods()
-            .inAnyNamespace()
+            .inNamespace(namespace)
             .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
             .withField("status.phase", "Running")
             .list()
