@@ -31,6 +31,10 @@ redis:
     password: "password"
 ```
 
+Alternatively you can use environment variables to configure Kuvel. The environment variable will override
+ the config.yml and are `KUVEL_NAMESPACE`, `KUVEL_REDIS_GROUPNAME`, `KUVEL_REDIS_CONNECTION_HOSTNAME`,
+`KUVEL_REDIS_CONNECTION_PORT`, `KUVEL_REDIS_CONNECTION_USERNAME`, and `KUVEL_REDIS_CONNECTION_PASSWORD`.
+
 In order for Kuvel to monitor the server, you must request permission from Kubernetes to allow
 Velocity pods discovery Minecraft servers. For Velocity pods, please allow get/list/watch to Pods
 and ReplicaSets.

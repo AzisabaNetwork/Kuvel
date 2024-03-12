@@ -2,6 +2,7 @@ package net.azisaba.kuvel.config;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import javax.annotation.Nullable;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -25,12 +26,23 @@ public class KuvelConfig {
     VelocityConfigLoader conf = VelocityConfigLoader.load(new File(plugin.getDataDirectory(), CONFIG_FILE_NAME));
     conf.saveDefaultConfig();
 
-    namespace = conf.getString("namespace", null);
+    Map<String, String> env = System.getenv();
 
-    String hostname = conf.getString("redis.connection.hostname");
+    namespace = env.getOrDefault("KUVEL_NAMESPACE", conf.getString("namespace", null));
+
+    String hostname = env.getOrDefault("KUVEL_REDIS_CONNECTION_HOSTNAME", conf.getString("redis.connection.hostname"));
     int port = conf.getInt("redis.connection.port", -1);
-    String username = conf.getString("redis.connection.username");
-    String password = conf.getString("redis.connection.password");
+    if (env.containsKey("KUVEL_REDIS_CONNECTION_PORT")) {
+      try {
+        port = Integer.parseInt(env.get("KUVEL_REDIS_CONNECTION_PORT"));
+      } catch (NumberFormatException e) {
+        plugin
+            .getLogger()
+            .warning("Invalid port number for Redis connection specified in KUVEL_REDIS_CONNECTION_PORT environment variable. Using port " + port + " from config.yml.");
+      }
+    }
+    String username = env.getOrDefault("KUVEL_REDIS_CONNECTION_USERNAME", conf.getString("redis.connection.username"));
+    String password = env.getOrDefault("KUVEL_REDIS_CONNECTION_PASSWORD", conf.getString("redis.connection.password"));
 
     if (hostname == null || port <= 0) {
       redisEnabled = false;
@@ -42,6 +54,6 @@ public class KuvelConfig {
       redisConnectionData = new RedisConnectionData(hostname, port, username, password);
     }
 
-    proxyGroupName = conf.getString("redis.group-name", null);
+    proxyGroupName = env.getOrDefault("KUVEL_REDIS_GROUPNAME", conf.getString("redis.group-name", null));
   }
 }
