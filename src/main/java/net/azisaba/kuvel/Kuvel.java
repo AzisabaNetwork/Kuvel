@@ -14,7 +14,6 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 import lombok.Getter;
 import net.azisaba.kuvel.config.KuvelConfig;
 import net.azisaba.kuvel.discovery.impl.redis.RedisLoadBalancerDiscovery;
@@ -24,6 +23,7 @@ import net.azisaba.kuvel.listener.LoadBalancerListener;
 import net.azisaba.kuvel.redis.ProxyIdProvider;
 import net.azisaba.kuvel.redis.RedisConnectionLeader;
 import net.azisaba.kuvel.redis.RedisSubscriberExecutor;
+import org.slf4j.Logger;
 
 @Plugin(
     id = "kuvel",
@@ -63,8 +63,7 @@ public class Kuvel {
     try {
       kuvelConfig.load();
     } catch (Exception e) {
-      logger.severe("Failed to load config file. Plugin feature will be disabled.");
-      e.printStackTrace();
+      logger.error("Failed to load config file. Plugin feature will be disabled.", e);
       return;
     }
 

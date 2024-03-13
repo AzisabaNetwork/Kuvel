@@ -38,7 +38,8 @@ public class KuvelConfig {
       } catch (NumberFormatException e) {
         plugin
             .getLogger()
-            .warning("Invalid port number for Redis connection specified in KUVEL_REDIS_CONNECTION_PORT environment variable. Using port " + port + " from config.yml.");
+            .warn(
+                "Invalid port number for Redis connection specified in KUVEL_REDIS_CONNECTION_PORT environment variable. Using port " + port + " from config.yml.");
       }
     }
     String username = env.getOrDefault("KUVEL_REDIS_CONNECTION_USERNAME", conf.getString("redis.connection.username"));
@@ -48,7 +49,7 @@ public class KuvelConfig {
       redisEnabled = false;
       plugin
           .getLogger()
-          .warning(
+          .warn(
               "Redis is enabled, but hostname or port is invalid. Redis sync will be disabled.");
     } else {
       redisConnectionData = new RedisConnectionData(hostname, port, username, password);
