@@ -23,6 +23,21 @@ public class KuvelConfig {
   @Nullable private String proxyGroupName;
 
   public void load() throws IOException {
+    File uppercaseDataFolder = new File(plugin.getDataDirectory().getParentFile(), "Kuvel");
+    if (uppercaseDataFolder.exists() && !plugin.getDataDirectory().exists()) {
+      if (uppercaseDataFolder.renameTo(plugin.getDataDirectory())) {
+        plugin
+           .getLogger()
+           .info(
+               "Successfully renamed the data folder to use a lowercase name.");
+      } else {
+        plugin
+            .getLogger()
+            .warn(
+                "Failed to rename the data folder to be lowercase. Please manually rename the data folder to 'kuvel'.");
+      }
+    }
+
     VelocityConfigLoader conf = VelocityConfigLoader.load(new File(plugin.getDataDirectory(), CONFIG_FILE_NAME));
     conf.saveDefaultConfig();
 
