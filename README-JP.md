@@ -16,6 +16,7 @@ Pluginは [Releases](https://github.com/AzisabaNetwork/Kuvel/releases/latest)
 からダウンロードできます。 `Kuvel.jar` をダウンロードしVelocityに導入してください。ダウンロード後、コンフィグの設定を行ってください。
 
 ```yml
+namespace: ""
 redis:
   group-name: "production" # Redisサーバーが同じかつgroup-nameが同じサーバー間でのみ名前同期が行われます
   connection:

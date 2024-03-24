@@ -17,6 +17,8 @@ from [Releases](https://github.com/AzisabaNetwork/Kuvel/releases/latest). Downlo
 install it into Velocity plugins directory. Also, you have to fill in the configuration file.
 
 ```yml
+# The kubernetes namespace to use for the server discovery.
+namespace: ""
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
 redis:
   group-name: "production"
@@ -28,6 +30,10 @@ redis:
     # password is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
     password: "password"
 ```
+
+Alternatively you can use environment variables to configure Kuvel. The environment variable will override
+ the config.yml and are `KUVEL_NAMESPACE`, `KUVEL_REDIS_GROUPNAME`, `KUVEL_REDIS_CONNECTION_HOSTNAME`,
+`KUVEL_REDIS_CONNECTION_PORT`, `KUVEL_REDIS_CONNECTION_USERNAME`, and `KUVEL_REDIS_CONNECTION_PASSWORD`.
 
 In order for Kuvel to monitor the server, you must request permission from Kubernetes to allow
 Velocity pods discovery Minecraft servers. For Velocity pods, please allow get/list/watch to Pods
