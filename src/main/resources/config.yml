@@ -1,3 +1,5 @@
+# The kubernetes namespace to use for the server discovery.
+namespace: ""
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
 redis:
   group-name: "production"

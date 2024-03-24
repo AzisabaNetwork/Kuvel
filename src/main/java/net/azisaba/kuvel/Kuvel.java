@@ -5,12 +5,15 @@ import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Plugin;
+import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
+
+import java.io.File;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 import lombok.Getter;
 import net.azisaba.kuvel.config.KuvelConfig;
 import net.azisaba.kuvel.discovery.impl.redis.RedisLoadBalancerDiscovery;
@@ -20,11 +23,12 @@ import net.azisaba.kuvel.listener.LoadBalancerListener;
 import net.azisaba.kuvel.redis.ProxyIdProvider;
 import net.azisaba.kuvel.redis.RedisConnectionLeader;
 import net.azisaba.kuvel.redis.RedisSubscriberExecutor;
+import org.slf4j.Logger;
 
 @Plugin(
     id = "kuvel",
     name = "Kuvel",
-    version = "2.0.2",
+    version = "2.1.0",
     url = "https://github.com/AzisabaNetwork/Kuvel",
     description =
         "Server-discovery Velocity plugin for Minecraft servers running in a Kubernetes cluster.",
@@ -34,6 +38,7 @@ public class Kuvel {
 
   private final ProxyServer proxy;
   private final Logger logger;
+  private final File dataDirectory;
 
   private KubernetesClient client;
   private KuvelServiceHandler kuvelServiceHandler;
@@ -44,9 +49,10 @@ public class Kuvel {
   private KuvelConfig kuvelConfig;
 
   @Inject
-  public Kuvel(ProxyServer server, Logger logger) {
+  public Kuvel(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
     this.proxy = server;
     this.logger = logger;
+    this.dataDirectory = dataDirectory.toFile();
   }
 
   @Subscribe
@@ -57,12 +63,11 @@ public class Kuvel {
     try {
       kuvelConfig.load();
     } catch (Exception e) {
-      logger.severe("Failed to load config file. Plugin feature will be disabled.");
-      e.printStackTrace();
+      logger.error("Failed to load config file. Plugin feature will be disabled.", e);
       return;
     }
 
-    kuvelServiceHandler = new KuvelServiceHandler(this, client);
+    kuvelServiceHandler = new KuvelServiceHandler(this, client, kuvelConfig.getNamespace());
 
     Objects.requireNonNull(kuvelConfig.getRedisConnectionData());
     Objects.requireNonNull(kuvelConfig.getProxyGroupName());
@@ -88,6 +93,7 @@ public class Kuvel {
         new RedisLoadBalancerDiscovery(
             client,
             this,
+            kuvelConfig.getNamespace(),
             kuvelConfig.getRedisConnectionData().createJedisPool(),
             kuvelConfig.getProxyGroupName(),
             redisConnectionLeader,
@@ -97,6 +103,7 @@ public class Kuvel {
         new RedisServerDiscovery(
             client,
             this,
+            kuvelConfig.getNamespace(),
             kuvelConfig.getRedisConnectionData().createJedisPool(),
             kuvelConfig.getProxyGroupName(),
             redisConnectionLeader,

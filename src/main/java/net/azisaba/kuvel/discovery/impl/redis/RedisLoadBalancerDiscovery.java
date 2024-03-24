@@ -32,6 +32,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
 
   private final KubernetesClient client;
   private final Kuvel plugin;
+  private final String namespace;
   private final JedisPool jedisPool;
   private final String groupName;
   private final RedisConnectionLeader redisConnectionLeader;
@@ -55,7 +56,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
               client
                   .apps()
                   .replicaSets()
-                  .inAnyNamespace()
+                  .inNamespace(namespace)
                   .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
                   .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
                   .list()
@@ -241,7 +242,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
         client
             .apps()
             .replicaSets()
-            .inAnyNamespace()
+            .inNamespace(namespace)
             .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
             .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
             .list()
@@ -272,7 +273,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
     return client
         .apps()
         .replicaSets()
-        .inAnyNamespace()
+        .inNamespace(namespace)
         .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
         .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
         .list()
