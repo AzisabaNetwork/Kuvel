@@ -26,6 +26,14 @@ redis:
     password: "password"
 ```
 
+環境変数を指定してKuvelを設定することもできます。環境変数はconfig.ymlよりも優先され、以下の項目が設定可能です:
+- `KUVEL_NAMESPACE`
+- `KUVEL_REDIS_GROUPNAME`
+- `KUVEL_REDIS_CONNECTION_HOSTNAME`
+- `KUVEL_REDIS_CONNECTION_PORT`
+- `KUVEL_REDIS_CONNECTION_USERNAME`
+- `KUVEL_REDIS_CONNECTION_PASSWORD`
+
 Kuvelがサーバーを監視するためには、Kubernetesに対して権限を要求しなければなりません。VelocityのPodに対してPodとReplicaSetのget/list/watchを許可してください
 
 ```yml
