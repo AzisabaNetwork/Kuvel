@@ -155,16 +155,16 @@ public class RedisServerDiscovery implements ServerDiscovery {
       verb = "Found";
     }
 
-    for (String podUid : podIdToServerNameMap.keySet()) {
-      plugin
-          .getLogger()
-          .info(verb + " server: " + podIdToServerNameMap.get(podUid) + " (" + podUid + ")");
-    }
-
     HashMap<String, Pod> servers = new HashMap<>();
     for (Entry<String, String> entry : podIdToServerNameMap.entrySet()) {
+      plugin
+          .getLogger()
+          .info(verb + " server: " + entry.getValue() + " (" + entry.getKey() + ")");
       Pod pod = getPodByUid(entry.getKey());
       if (pod == null) {
+        plugin
+            .getLogger()
+            .warn("Pod " + entry.getKey() + " for server " + entry.getValue() + " not found");
         continue;
       }
 
