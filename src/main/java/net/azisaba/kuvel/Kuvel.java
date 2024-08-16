@@ -7,13 +7,14 @@ import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
-import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import lombok.Getter;
 import net.azisaba.kuvel.config.KuvelConfig;
 import net.azisaba.kuvel.discovery.impl.redis.RedisLoadBalancerDiscovery;
@@ -57,7 +58,7 @@ public class Kuvel {
 
   @Subscribe
   public void onProxyInitialization(ProxyInitializeEvent event) {
-    client = new DefaultKubernetesClient();
+    client = new KubernetesClientBuilder().build();
 
     kuvelConfig = new KuvelConfig(this);
     try {
