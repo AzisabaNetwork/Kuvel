@@ -4,8 +4,6 @@ import com.velocitypowered.api.scheduler.ScheduledTask;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodList;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
-import io.fabric8.kubernetes.client.dsl.PodResource;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
@@ -13,10 +11,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+
+import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
+import io.fabric8.kubernetes.client.dsl.PodResource;
 import lombok.RequiredArgsConstructor;
 import net.azisaba.kuvel.Kuvel;
 import net.azisaba.kuvel.KuvelServiceHandler;
@@ -34,6 +36,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
 
   private final KubernetesClient client;
   private final Kuvel plugin;
+  private final String namespace;
   private final JedisPool jedisPool;
   private final String groupName;
   private final RedisConnectionLeader redisConnectionLeader;
@@ -52,7 +55,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
     Runnable runnable =
         () -> {
           FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
-              .inAnyNamespace();
+              .inNamespace(namespace);
 
           for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
             request = request.withLabel(e.getKey(), e.getValue());
@@ -115,7 +118,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
             jedis.hgetAll(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName);
 
         FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
-            .inAnyNamespace();
+            .inNamespace(namespace);
 
         for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
           request = request.withLabel(e.getKey(), e.getValue());
@@ -161,16 +164,16 @@ public class RedisServerDiscovery implements ServerDiscovery {
       verb = "Found";
     }
 
-    for (String podUid : podIdToServerNameMap.keySet()) {
-      plugin
-          .getLogger()
-          .info(verb + " server: " + podIdToServerNameMap.get(podUid) + " (" + podUid + ")");
-    }
-
     HashMap<String, Pod> servers = new HashMap<>();
     for (Entry<String, String> entry : podIdToServerNameMap.entrySet()) {
+      plugin
+          .getLogger()
+          .info(verb + " server: " + entry.getValue() + " (" + entry.getKey() + ")");
       Pod pod = getPodByUid(entry.getKey());
       if (pod == null) {
+        plugin
+            .getLogger()
+            .warn("Pod " + entry.getKey() + " for server " + entry.getValue() + " not found");
         continue;
       }
 

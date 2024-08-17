@@ -6,18 +6,18 @@ import com.velocitypowered.api.scheduler.ScheduledTask;
 import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
 import io.fabric8.kubernetes.api.model.apps.ReplicaSetList;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
-import io.fabric8.kubernetes.client.dsl.RollableScalableResource;
 import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+
+import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
+import io.fabric8.kubernetes.client.dsl.RollableScalableResource;
 import lombok.RequiredArgsConstructor;
 import net.azisaba.kuvel.Kuvel;
 import net.azisaba.kuvel.KuvelServiceHandler;
@@ -36,6 +36,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
 
   private final KubernetesClient client;
   private final Kuvel plugin;
+  private final String namespace;
   private final JedisPool jedisPool;
   private final String groupName;
   private final RedisConnectionLeader redisConnectionLeader;
@@ -56,9 +57,9 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
     Runnable runnable =
         () -> {
           FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
-              .replicaSets().inAnyNamespace();
+              .replicaSets().inNamespace(namespace);
 
-          for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+          for (Map.Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
             request = request.withLabel(e.getKey(), e.getValue());
           }
 
@@ -242,9 +243,9 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
         }
 
         FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
-            .replicaSets().inAnyNamespace();
+            .replicaSets().inNamespace(namespace);
 
-        for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+        for (Map.Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
           request = request.withLabel(e.getKey(), e.getValue());
         }
 
@@ -273,9 +274,9 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
 
   private ReplicaSet getReplicaSetFromUid(String uid) {
     FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
-        .replicaSets().inAnyNamespace();
+        .replicaSets().inNamespace(namespace);
 
-    for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+    for (Map.Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
       request = request.withLabel(e.getKey(), e.getValue());
     }
 

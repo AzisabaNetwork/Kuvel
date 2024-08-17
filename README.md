@@ -17,6 +17,8 @@ from [Releases](https://github.com/AzisabaNetwork/Kuvel/releases/latest). Downlo
 install it into Velocity plugins directory. The config file requires initial setup as seen below.
 
 ```yml
+# The kubernetes namespace to use for the server discovery.
+namespace: ""
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity instances.
 redis:
   group-name: "develop"
@@ -32,6 +34,10 @@ redis:
 label-selectors:
   - "kuvel.azisaba.net/enable-server-discovery=true"
 ```
+
+Alternatively you can use environment variables to configure Kuvel. The environment variable will override
+ the config.yml and are `KUVEL_NAMESPACE`, `KUVEL_REDIS_GROUPNAME`, `KUVEL_REDIS_CONNECTION_HOSTNAME`,
+`KUVEL_REDIS_CONNECTION_PORT`, `KUVEL_REDIS_CONNECTION_USERNAME`, and `KUVEL_REDIS_CONNECTION_PASSWORD`.
 
 In order for Kuvel to monitor the server, you must request permission from Kubernetes. For Velocity pods, please allow get/list/watch to Pods
 and ReplicaSets.

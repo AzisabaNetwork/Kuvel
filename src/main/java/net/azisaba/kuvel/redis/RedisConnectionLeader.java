@@ -120,6 +120,7 @@ public class RedisConnectionLeader {
             new RedisLoadBalancerDiscovery(
                 plugin.getClient(),
                 plugin,
+                plugin.getKuvelConfig().getNamespace(),
                 plugin.getKuvelConfig().getRedisConnectionData().createJedisPool(),
                 plugin.getKuvelConfig().getProxyGroupName(),
                 this,
@@ -131,6 +132,7 @@ public class RedisConnectionLeader {
             new RedisServerDiscovery(
                 plugin.getClient(),
                 plugin,
+                plugin.getKuvelConfig().getNamespace(),
                 plugin.getKuvelConfig().getRedisConnectionData().createJedisPool(),
                 plugin.getKuvelConfig().getProxyGroupName(),
                 this,
