@@ -171,9 +171,9 @@ public class RedisServerDiscovery implements ServerDiscovery {
           .info(verb + " server: " + entry.getValue() + " (" + entry.getKey() + ")");
       Pod pod = getPodByUid(entry.getKey());
       if (pod == null) {
-        plugin
-            .getLogger()
-            .warn("Pod " + entry.getKey() + " for server " + entry.getValue() + " not found");
+          plugin
+                  .getLogger()
+                  .warn("Pod {} for server {} not found", entry.getKey(), entry.getValue());
         continue;
       }
 

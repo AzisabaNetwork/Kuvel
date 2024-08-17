@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 
+import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
 import io.fabric8.kubernetes.client.dsl.PodResource;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -163,10 +164,7 @@ public class KuvelServiceHandler {
             boolean success = registerPod(pod, serverName);
             if (!success) {
               plugin.getProxy().getServer(serverName).ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
-              plugin.getLogger().warning("Failed to register pod. ( "
-                  + "serverName = " + serverName + ", "
-                  + "pod = " + pod.getMetadata().getUid()
-                  + " )");
+                plugin.getLogger().warn("Failed to register pod. ( serverName = {}, pod = {} )", serverName, pod.getMetadata().getUid());
             }
           });
 
