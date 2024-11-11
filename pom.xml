@@ -6,7 +6,7 @@
 
   <groupId>net.azisaba</groupId>
   <artifactId>Kuvel</artifactId>
-  <version>3.0.0-rc3</version>
+  <version>3.0.0</version>
   <packaging>jar</packaging>
 
   <name>${project.artifactId}</name>
