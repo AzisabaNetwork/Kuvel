@@ -54,7 +54,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
               client
                   .pods()
                   .inNamespace(namespace)
-                  .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
+                  .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), "true")
                   .list()
                   .getItems();
 
@@ -112,10 +112,11 @@ public class RedisServerDiscovery implements ServerDiscovery {
         Map<String, String> loadBalancerMap =
             jedis.hgetAll(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName);
 
+        String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
         client
             .pods()
             .inNamespace(namespace)
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
+            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
             .withField("status.phase", "Running")
             .list()
             .getItems()
@@ -130,7 +131,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
                       pod.getMetadata()
                           .getLabels()
                           .getOrDefault(
-                              LabelKeys.PREFERRED_SERVER_NAME.getKey(),
+                              LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix),
                               pod.getMetadata().getName());
                   String serverName =
                       getValidServerName(
@@ -233,7 +234,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
       String preferServerName =
           pod.getMetadata()
               .getLabels()
-              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(), pod.getMetadata().getName());
+              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), pod.getMetadata().getName());
 
       serverName =
           getValidServerName(

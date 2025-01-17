@@ -127,7 +127,7 @@ public class KuvelServiceHandler {
         client
             .pods()
             .inNamespace(namespace)
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
+            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), "true")
             .list()
             .getItems();
 
@@ -160,8 +160,8 @@ public class KuvelServiceHandler {
         plugin.getProxy().getServer(entry.getKey()).ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
         plugin.getProxy().registerServer(new ServerInfo(entry.getKey(), address));
 
-        String initialServerStr = pod.getMetadata().getLabels()
-            .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(), "false");
+        String initialServerStr = pod.getMetadata().getLabels().getOrDefault(
+                LabelKeys.INITIAL_SERVER.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), "false");
         if (Boolean.parseBoolean(initialServerStr)) {
           initialServerNames.add(entry.getKey());
         }
@@ -232,7 +232,8 @@ public class KuvelServiceHandler {
     }
 
     String initialServerStr =
-        pod.getMetadata().getLabels().getOrDefault(LabelKeys.INITIAL_SERVER.getKey(), "false");
+        pod.getMetadata().getLabels().getOrDefault(
+                LabelKeys.INITIAL_SERVER.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), "false");
     if (Boolean.parseBoolean(initialServerStr)) {
       initialServerNames.add(serverName);
     }
@@ -253,7 +254,8 @@ public class KuvelServiceHandler {
         client
             .pods()
             .inNamespace(namespace)
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
+            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(
+                    plugin.getKuvelConfig().getLabelKeyPrefix()), "true")
             .list()
             .getItems()
             .stream()
