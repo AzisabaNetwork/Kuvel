@@ -52,13 +52,14 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
 
     Runnable runnable =
         () -> {
+          String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
           List<ReplicaSet> replicaSetList =
               client
                   .apps()
                   .replicaSets()
                   .inNamespace(namespace)
-                  .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
-                  .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
+                  .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
+                  .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix))
                   .list()
                   .getItems();
 
@@ -114,16 +115,17 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
       return;
     }
 
+    String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
     String serverName =
         replicaSet
             .getMetadata()
             .getLabels()
-            .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(), null);
+            .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), null);
     boolean initialServer =
         replicaSet
             .getMetadata()
             .getLabels()
-            .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(), "false")
+            .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(labelKeyPrefix), "false")
             .equalsIgnoreCase("true");
 
     if (serverName == null) {
@@ -239,12 +241,13 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
           registerOrIgnore(replicaSet, true);
         }
 
+        String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
         client
             .apps()
             .replicaSets()
             .inNamespace(namespace)
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
-            .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
+            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
+            .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix))
             .list()
             .getItems()
             .stream()
@@ -270,12 +273,13 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
   }
 
   private ReplicaSet getReplicaSetFromUid(String uid) {
+    String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
     return client
         .apps()
         .replicaSets()
         .inNamespace(namespace)
-        .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(), "true")
-        .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey())
+        .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
+        .withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix))
         .list()
         .getItems()
         .stream()

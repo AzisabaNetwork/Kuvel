@@ -21,6 +21,7 @@ public class KuvelConfig {
   private boolean redisEnabled;
   @Nullable private RedisConnectionData redisConnectionData;
   @Nullable private String proxyGroupName;
+  private String labelKeyPrefix;
 
   public void load() throws IOException {
     File uppercaseDataFolder = new File(plugin.getDataDirectory().getParentFile(), "Kuvel");
@@ -71,5 +72,6 @@ public class KuvelConfig {
     }
 
     proxyGroupName = env.getOrDefault("KUVEL_REDIS_GROUPNAME", conf.getString("redis.group-name", null));
+    labelKeyPrefix = env.getOrDefault("KUVEL_LABEL_KEY_PREFIX", conf.getString("label-key-prefix", "kuvel.azisaba.net"));
   }
 }

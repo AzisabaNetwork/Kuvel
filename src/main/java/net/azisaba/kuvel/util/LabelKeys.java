@@ -11,12 +11,12 @@ public enum LabelKeys {
 
   private final String key;
 
-  public String getKey() {
-    return "kuvel.azisaba.net/" + key;
+  public String getKey(String prefix) {
+    return prefix + "/" + key;
   }
 
   @Override
   public String toString() {
-    return getKey();
+    return key;
   }
 }
