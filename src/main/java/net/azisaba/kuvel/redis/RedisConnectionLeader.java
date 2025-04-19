@@ -6,14 +6,13 @@ import net.azisaba.kuvel.Kuvel;
 import net.azisaba.kuvel.discovery.impl.redis.RedisLoadBalancerDiscovery;
 import net.azisaba.kuvel.discovery.impl.redis.RedisServerDiscovery;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.params.SetParams;
 
 @RequiredArgsConstructor
 public class RedisConnectionLeader {
 
   private final Kuvel plugin;
-  private final JedisPool jedisPool;
+  private final JedisPoolWrapper jedisPool;
   private final String groupName;
   private final String proxyId;
 
@@ -121,7 +120,7 @@ public class RedisConnectionLeader {
                 plugin.getClient(),
                 plugin,
                 plugin.getKuvelConfig().getNamespace(),
-                plugin.getKuvelConfig().getRedisConnectionData().createJedisPool(),
+                plugin.getKuvelConfig().getRedisConnectionData().createPoolWrapper(),
                 plugin.getKuvelConfig().getProxyGroupName(),
                 this,
                 plugin.getKuvelServiceHandler()));
@@ -133,7 +132,7 @@ public class RedisConnectionLeader {
                 plugin.getClient(),
                 plugin,
                 plugin.getKuvelConfig().getNamespace(),
-                plugin.getKuvelConfig().getRedisConnectionData().createJedisPool(),
+                plugin.getKuvelConfig().getRedisConnectionData().createPoolWrapper(),
                 plugin.getKuvelConfig().getProxyGroupName(),
                 this,
                 plugin.getKuvelServiceHandler()));

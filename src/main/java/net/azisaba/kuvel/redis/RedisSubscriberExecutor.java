@@ -8,13 +8,12 @@ import lombok.Setter;
 import net.azisaba.kuvel.Kuvel;
 import net.azisaba.kuvel.KuvelServiceHandler;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPubSub;
 
 @RequiredArgsConstructor
 public class RedisSubscriberExecutor {
 
-  private final JedisPool jedisPool;
+  private final JedisPoolWrapper redisPool;
   private final String groupName;
 
   @Getter @Setter private ExecutorService executorService = Executors.newFixedThreadPool(1);
@@ -29,7 +28,7 @@ public class RedisSubscriberExecutor {
 
     Runnable task =
         () -> {
-          try (Jedis jedis = jedisPool.getResource()) {
+          try (Jedis jedis = redisPool.getResource()) {
             jedis.psubscribe(
                 subscriber, RedisKeys.NOTIFY_CHANNEL_PREFIX.getKey() + "*:" + groupName);
           }

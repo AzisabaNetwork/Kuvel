@@ -5,13 +5,12 @@ import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.params.SetParams;
 
 @RequiredArgsConstructor
 public class ProxyIdProvider {
 
-  private final JedisPool jedisPool;
+  private final JedisPoolWrapper jedisPool;
   private final String groupName;
 
   private String id;

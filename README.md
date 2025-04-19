@@ -40,26 +40,26 @@ Velocity pods discovery Minecraft servers. For Velocity pods, please allow get/l
 and ReplicaSets.
 
 ```yml
- apiVersion: v1
- kind: ServiceAccount
- metadata:
-   name: velocity-account
-   namespace: default
-   ---
- apiVersion: rbac.authorization.k8s.io/v1
- kind: ClusterRoleBinding
- metadata:
-   name: velocity-clusterrolebiding
- roleRef:
-   apiGroup: rbac.authorization.k8s.io
-   kind: ClusterRole
-   name: view
- subjects:
- - kind: ServiceAccount
-   name: velocity-account
-   namespace: default
- ```
- ```yml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velocity-account
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: velocity-clusterrolebiding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: ServiceAccount
+  name: velocity-account
+  namespace: default
+```
+```yml
 # Apply ServiceAccount to the Velocity pod
 apiVersion: apps/v1
 kind: ...
@@ -67,7 +67,7 @@ kind: ...
 spec:
   serviceAccountName: velocity-account
 # ...
- ```
+```
 
 ## Enable Service Discovery on the Minecraft Servers
 
@@ -88,7 +88,7 @@ metadata:
   name: test-server
   labels:
     kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers.
-    kuvel.azisaba.net/preferred-server-name: : "test-server" # Required for Kuvel to name the server
+    kuvel.azisaba.net/preferred-server-name: "test-server" # Required for Kuvel to name the server
     # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this server the initial server.   
 spec:
   containers:

@@ -5,6 +5,7 @@ label-key-prefix: "kuvel.azisaba.net"
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
 redis:
   group-name: "production"
+  # Redis connection configuration - standalone mode
   connection:
     hostname: "redis"
     port: 6379
@@ -12,3 +13,11 @@ redis:
     username: "default"
     # password is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
     password: "password"
+  # Redis Sentinel configuration - set enabled to true to use Sentinel instead of standalone mode
+  sentinel:
+    enabled: false
+    # The name of the master node in the Sentinel configuration
+    master: "mymaster"
+    # Comma-separated list of sentinel nodes (host:port)
+    nodes: "sentinel1:26379,sentinel2:26379,sentinel3:26379"
+    # username and password are shared with the connection section above

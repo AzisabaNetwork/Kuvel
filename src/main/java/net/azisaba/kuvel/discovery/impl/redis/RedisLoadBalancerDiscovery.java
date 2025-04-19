@@ -21,11 +21,11 @@ import net.azisaba.kuvel.discovery.LoadBalancerDiscovery;
 import net.azisaba.kuvel.discovery.diffchecker.ReplicaSetDiffChecker;
 import net.azisaba.kuvel.loadbalancer.LoadBalancer;
 import net.azisaba.kuvel.loadbalancer.strategy.impl.RoundRobinLoadBalancingStrategy;
+import net.azisaba.kuvel.redis.JedisPoolWrapper;
 import net.azisaba.kuvel.redis.RedisConnectionLeader;
 import net.azisaba.kuvel.redis.RedisKeys;
 import net.azisaba.kuvel.util.LabelKeys;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
 
 @RequiredArgsConstructor
 public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
@@ -33,7 +33,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
   private final KubernetesClient client;
   private final Kuvel plugin;
   private final String namespace;
-  private final JedisPool jedisPool;
+  private final JedisPoolWrapper jedisPool;
   private final String groupName;
   private final RedisConnectionLeader redisConnectionLeader;
   private final KuvelServiceHandler kuvelServiceHandler;
