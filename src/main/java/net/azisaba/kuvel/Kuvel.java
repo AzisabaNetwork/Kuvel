@@ -75,7 +75,7 @@ public class Kuvel {
 
     proxyIdProvider =
         new ProxyIdProvider(
-            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getRedisConnectionData().createPoolWrapper(),
             kuvelConfig.getProxyGroupName());
     proxyIdProvider.runTask(proxy, this);
 
@@ -84,7 +84,7 @@ public class Kuvel {
     redisConnectionLeader =
         new RedisConnectionLeader(
             this,
-            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getRedisConnectionData().createPoolWrapper(),
             kuvelConfig.getProxyGroupName(),
             proxyIdProvider.getId());
 
@@ -95,7 +95,7 @@ public class Kuvel {
             client,
             this,
             kuvelConfig.getNamespace(),
-            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getRedisConnectionData().createPoolWrapper(),
             kuvelConfig.getProxyGroupName(),
             redisConnectionLeader,
             kuvelServiceHandler));
@@ -105,7 +105,7 @@ public class Kuvel {
             client,
             this,
             kuvelConfig.getNamespace(),
-            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getRedisConnectionData().createPoolWrapper(),
             kuvelConfig.getProxyGroupName(),
             redisConnectionLeader,
             kuvelServiceHandler));
@@ -126,7 +126,7 @@ public class Kuvel {
 
     redisSubscriberExecutor =
         new RedisSubscriberExecutor(
-            kuvelConfig.getRedisConnectionData().createJedisPool(),
+            kuvelConfig.getRedisConnectionData().createPoolWrapper(),
             kuvelConfig.getProxyGroupName());
     redisSubscriberExecutor.subscribe(this, kuvelServiceHandler, redisConnectionLeader);
 
