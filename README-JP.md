@@ -16,13 +16,19 @@ Pluginは [Releases](https://github.com/AzisabaNetwork/Kuvel/releases/latest)
 からダウンロードできます。 `Kuvel.jar` をダウンロードしVelocityに導入してください。ダウンロード後、コンフィグの設定を行ってください。
 
 ```yml
+# サーバー探索に使用するKubernetesのnamespace
 namespace: ""
+# サーバーラベル/アノテーションのkey prefix
+label-key-prefix: "kuvel.azisaba.net"
+# Redisを使ったサーバー名同期は、複数のVelocityを使うLoadBalancer構成では必須です
 redis:
   group-name: "develop" # Redisサーバーが同じかつgroup-nameが同じサーバー間でのみ名前同期が行われます
   connection:
     hostname: "redis"
     port: 6379
+    # username は任意です。認証が有効な場合のみ指定してください (無効なら空/NULLでOK)
     username: "default"
+    # password は任意です。認証が有効な場合のみ指定してください (無効なら空/NULLでOK)
     password: "password"
 
 # label-selectors は登録するPodとReplicaSetを指定するために使用します
@@ -32,6 +38,7 @@ label-selectors:
 
 環境変数を指定してKuvelを設定することもできます。環境変数はconfig.ymlよりも優先され、以下の項目が設定可能です:
 - `KUVEL_NAMESPACE`
+- `KUVEL_LABEL_KEY_PREFIX`
 - `KUVEL_REDIS_GROUPNAME`
 - `KUVEL_REDIS_CONNECTION_HOSTNAME`
 - `KUVEL_REDIS_CONNECTION_PORT`
@@ -41,26 +48,26 @@ label-selectors:
 Kuvelがサーバーを監視するためには、Kubernetesに対して権限を要求しなければなりません。VelocityのPodに対してPodとReplicaSetのget/list/watchを許可してください
 
 ```yml
- apiVersion: v1
- kind: ServiceAccount
- metadata:
-   name: velocity-account
-   namespace: default
-   ---
- apiVersion: rbac.authorization.k8s.io/v1
- kind: ClusterRoleBinding
- metadata:
-   name: velocity-clusterrolebiding
- roleRef:
-   apiGroup: rbac.authorization.k8s.io
-   kind: ClusterRole
-   name: view
- subjects:
- - kind: ServiceAccount
-   name: velocity-account
-   namespace: default
- ```
- ```yml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velocity-account
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: velocity-clusterrolebiding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: ServiceAccount
+  name: velocity-account
+  namespace: default
+```
+```yml
 # VelocityのPodに対して ServiceAccount を設定する
 apiVersion: apps/v1
 kind: ...
@@ -83,6 +90,8 @@ labelはconfigで指定します。デフォルトでは、`kuvel.azisaba.net/en
 | kuvel.azisaba.net/preferred-server-name | Velocityに登録したいサーバー名 |
 |    kuvel.azisaba.net/initial-server     |    true / false     |
 
+サーバー名が63文字を超える場合は、ラベルではなく`kuvel.azisaba.net/preferred-server-name`のアノテーションを使用してください。
+
 ### Podの場合
 
 ```yml
@@ -93,6 +102,7 @@ metadata:
   labels:
     kuvel.azisaba.net/enable-server-discovery: "true" # KuvelがMinecraftサーバーを見つけるために必要 (Configに依存)
     kuvel.azisaba.net/preferred-server-name: "test-server" # Kuvelがサーバーの命名をするために必要
+    # kuvel.azisaba.net/initial-server: "true" # 初期サーバーにする場合はコメントアウトを外す
 spec:
   containers:
     - name: test-server
@@ -118,6 +128,7 @@ spec:
         app: test-server-deployment
         kuvel.azisaba.net/enable-server-discovery: "true" # KuvelがMinecraftサーバーを見つけるために必要 (Configに依存)
         kuvel.azisaba.net/preferred-server-name: "test-server" # Kuvelがサーバーの命名をするために必要
+        # kuvel.azisaba.net/initial-server: "true" # 初期サーバーにする場合はコメントアウトを外す
     spec:
       containers:
         - name: test-server
@@ -141,6 +152,7 @@ metadata:
   labels:
     kuvel.azisaba.net/enable-server-discovery: "true"
     kuvel.azisaba.net/preferred-server-name: "lobby"
+    # kuvel.azisaba.net/initial-server: "true" # このロードバランサーを初期サーバーにする場合はコメントアウトを外す
 spec:
   replicas: 3
   selector:
@@ -152,6 +164,7 @@ spec:
         app: lobby-deployment
         kuvel.azisaba.net/enable-server-discovery: "true"
         kuvel.azisaba.net/preferred-server-name: "lobby"
+        # kuvel.azisaba.net/initial-server: "true" # 初期サーバーにする場合はコメントアウトを外す
     spec:
       containers:
         - name: lobby
