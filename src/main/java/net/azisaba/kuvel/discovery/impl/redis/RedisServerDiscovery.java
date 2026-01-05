@@ -150,13 +150,23 @@ public class RedisServerDiscovery implements ServerDiscovery {
                             .getLabels()
                             .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), metadata.getName());
                   }
+                  boolean disableNameSuffix =
+                      metadata
+                          .getLabels()
+                          .getOrDefault(LabelKeys.DISABLE_NAME_SUFFIX.getKey(labelKeyPrefix), "false")
+                          .equalsIgnoreCase("true");
                   String serverName =
-                      getValidServerName(
+                      getServerNameForPod(
+                          metadata,
                           preferServerName,
+                          disableNameSuffix,
                           (name) ->
                               !podIdToServerNameMap.containsValue(name)
                                   && !loadBalancerMap.containsValue(name)
                                   && plugin.getProxy().getServer(name).isEmpty());
+                  if (serverName == null) {
+                    return;
+                  }
 
                   podIdToServerNameMap.put(uid, serverName);
                   jedis.hset(RedisKeys.SERVERS_PREFIX + groupName, uid, serverName);
@@ -260,14 +270,24 @@ public class RedisServerDiscovery implements ServerDiscovery {
                 .getLabels()
                 .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), metadata.getName());
       }
+      boolean disableNameSuffix =
+          metadata
+              .getLabels()
+              .getOrDefault(LabelKeys.DISABLE_NAME_SUFFIX.getKey(labelKeyPrefix), "false")
+              .equalsIgnoreCase("true");
 
       serverName =
-          getValidServerName(
+          getServerNameForPod(
+              metadata,
               preferServerName,
+              disableNameSuffix,
               (name) ->
                   !serverMap.containsValue(name)
                       && !loadBalancerMap.containsValue(name)
                       && plugin.getProxy().getServer(name).isEmpty());
+      if (serverName == null) {
+        return;
+      }
 
       kuvelServiceHandler.getPodUidAndServerNameMap().register(uid, serverName);
 
@@ -330,5 +350,29 @@ public class RedisServerDiscovery implements ServerDiscovery {
       i++;
     }
     return name;
+  }
+
+  private String getServerNameForPod(
+      ObjectMeta metadata,
+      String preferServerName,
+      boolean disableNameSuffix,
+      Function<String, Boolean> isValid) {
+    if (!disableNameSuffix) {
+      return getValidServerName(preferServerName, isValid);
+    }
+
+    if (isValid.apply(preferServerName)) {
+      return preferServerName;
+    }
+
+    String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
+    plugin
+        .getLogger()
+        .error(
+            "Multiple replicas detected for server name {} with {}=true. Only one replica is supported; skipping pod {}.",
+            preferServerName,
+            LabelKeys.DISABLE_NAME_SUFFIX.getKey(labelKeyPrefix),
+            metadata.getName());
+    return null;
   }
 }
