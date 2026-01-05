@@ -6,10 +6,10 @@
 
   <groupId>net.azisaba</groupId>
   <artifactId>Kuvel</artifactId>
-  <version>3.0.0</version>
+  <version>3.1.0-alpha.1</version>
   <packaging>jar</packaging>
 
-  <name>${project.artifactId}</name>
+  <name>Kuvel</name>
   <description>Server-discovery Velocity plugin for Minecraft servers running in a Kubernetes
     cluster.
   </description>
@@ -65,8 +65,8 @@
 
   <repositories>
     <repository>
-      <id>velocity</id>
-      <url>https://nexus.velocitypowered.com/repository/maven-public/</url>
+      <id>papermc</id>
+      <url>https://repo.papermc.io/repository/maven-public/</url>
     </repository>
   </repositories>
 
