@@ -133,7 +133,7 @@ public class KuvelServiceHandler {
         .inNamespace(namespace);
 
     for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
-      request = request.withLabel(e.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), e.getValue());
+      request = request.withLabel(e.getKey(), e.getValue());
     }
 
     List<Pod> pods = request.list().getItems();
@@ -267,8 +267,7 @@ public class KuvelServiceHandler {
         .inNamespace(namespace);
 
     for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
-      request = request.withLabel(e.getKey(
-                    plugin.getKuvelConfig().getLabelKeyPrefix()), e.getValue());
+      request = request.withLabel(e.getKey(), e.getValue());
     }
 
     Optional<Pod> pod = request

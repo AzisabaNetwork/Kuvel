@@ -60,7 +60,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
               .inNamespace(namespace);
 
           for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
-            request = request.withLabel(e.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), e.getValue());
+            request = request.withLabel(e.getKey(), e.getValue());
           }
 
           List<Pod> podList = request.list().getItems();
@@ -139,6 +139,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
                     return;
                   }
 
+                  String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
                   String preferServerName =
                       metadata
                           .getAnnotations()
