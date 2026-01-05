@@ -3,6 +3,7 @@ package net.azisaba.kuvel.discovery.impl.redis;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
 import com.velocitypowered.api.scheduler.ScheduledTask;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
 import io.fabric8.kubernetes.api.model.apps.ReplicaSetList;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -58,8 +59,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
         () -> {
           String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
           FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
-              .replicaSets().inNamespace(namespace).withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix));
-          // TODO: .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
+              .replicaSets().inNamespace(namespace);
 
           for (Map.Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
             request = request.withLabel(e.getKey(), e.getValue());
@@ -114,20 +114,25 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
   }
 
   private void registerOrIgnore(ReplicaSet replicaSet, boolean isFetchedFromRedis) {
-    String uid = replicaSet.getMetadata().getUid();
+    ObjectMeta metadata = replicaSet.getMetadata();
+    String uid = metadata.getUid();
     if (kuvelServiceHandler.getReplicaSetUidAndServerNameMap().getServerNameFromUid(uid) != null) {
       return;
     }
 
     String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
     String serverName =
-        replicaSet
-            .getMetadata()
-            .getLabels()
+        metadata
+            .getAnnotations()
             .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), null);
+    if (serverName == null) {
+      serverName =
+          metadata
+              .getLabels()
+              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), null);
+    }
     boolean initialServer =
-        replicaSet
-            .getMetadata()
+        metadata
             .getLabels()
             .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(labelKeyPrefix), "false")
             .equalsIgnoreCase("true");
@@ -247,8 +252,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
 
           String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
           FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
-                  .replicaSets().inNamespace(namespace).withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix));
-          // TODO: .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
+              .replicaSets().inNamespace(namespace);
 
         for (Map.Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
           request = request.withLabel(e.getKey(), e.getValue());
@@ -257,6 +261,11 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
         request.list()
             .getItems()
             .stream()
+            .filter(replicaSet -> {
+              ObjectMeta metadata = replicaSet.getMetadata();
+              return metadata.getAnnotations().containsKey(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix))
+                  || metadata.getLabels().containsKey(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix));
+            })
             .filter(replicaSet -> replicaSet.getStatus().getReplicas() > 0)
             .filter(replicaSet ->
                 !uidAndServerNameMapInRedis.containsKey(replicaSet.getMetadata().getUid()))
@@ -280,8 +289,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
   private ReplicaSet getReplicaSetFromUid(String uid) {
       String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
       FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
-              .replicaSets().inNamespace(namespace).withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix));
-      // TODO: .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
+              .replicaSets().inNamespace(namespace);
 
     for (Map.Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
       request = request.withLabel(e.getKey(), e.getValue());
@@ -291,6 +299,11 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
         .list()
         .getItems()
         .stream()
+        .filter(replicaSet -> {
+          ObjectMeta metadata = replicaSet.getMetadata();
+          return metadata.getAnnotations().containsKey(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix))
+              || metadata.getLabels().containsKey(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix));
+        })
         .filter(replicaSet -> replicaSet.getMetadata().getUid().equals(uid))
         .findAny()
         .orElse(null);
