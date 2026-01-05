@@ -58,7 +58,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
               .inNamespace(namespace);
 
           for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
-            request = request.withLabel(e.getKey(), e.getValue());
+            request = request.withLabel(e.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), e.getValue());
           }
 
           List<Pod> podList = request.list().getItems();
@@ -117,8 +117,10 @@ public class RedisServerDiscovery implements ServerDiscovery {
         Map<String, String> loadBalancerMap =
             jedis.hgetAll(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName);
 
+        //String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix()
         FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
             .inNamespace(namespace);
+        // TODO: .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
 
         for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
           request = request.withLabel(e.getKey(), e.getValue());
@@ -139,7 +141,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
                       pod.getMetadata()
                           .getLabels()
                           .getOrDefault(
-                              LabelKeys.PREFERRED_SERVER_NAME.getKey(),
+                              LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix),
                               pod.getMetadata().getName());
                   String serverName =
                       getValidServerName(
@@ -242,7 +244,7 @@ public class RedisServerDiscovery implements ServerDiscovery {
       String preferServerName =
           pod.getMetadata()
               .getLabels()
-              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(), pod.getMetadata().getName());
+              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), pod.getMetadata().getName());
 
       serverName =
           getValidServerName(

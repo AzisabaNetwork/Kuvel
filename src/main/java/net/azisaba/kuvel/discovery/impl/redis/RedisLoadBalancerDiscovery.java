@@ -56,8 +56,10 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
 
     Runnable runnable =
         () -> {
+          String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
           FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
-              .replicaSets().inNamespace(namespace);
+              .replicaSets().inNamespace(namespace).withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix));
+          // TODO: .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
 
           for (Map.Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
             request = request.withLabel(e.getKey(), e.getValue());
@@ -117,16 +119,17 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
       return;
     }
 
+    String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
     String serverName =
         replicaSet
             .getMetadata()
             .getLabels()
-            .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(), null);
+            .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), null);
     boolean initialServer =
         replicaSet
             .getMetadata()
             .getLabels()
-            .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(), "false")
+            .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(labelKeyPrefix), "false")
             .equalsIgnoreCase("true");
 
     if (serverName == null) {
@@ -242,8 +245,10 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
           registerOrIgnore(replicaSet, true);
         }
 
-        FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
-            .replicaSets().inNamespace(namespace);
+          String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
+          FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
+                  .replicaSets().inNamespace(namespace).withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix));
+          // TODO: .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
 
         for (Map.Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
           request = request.withLabel(e.getKey(), e.getValue());
@@ -273,8 +278,10 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
   }
 
   private ReplicaSet getReplicaSetFromUid(String uid) {
-    FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
-        .replicaSets().inNamespace(namespace);
+      String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
+      FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request = client.apps()
+              .replicaSets().inNamespace(namespace).withLabel(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix));
+      // TODO: .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
 
     for (Map.Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
       request = request.withLabel(e.getKey(), e.getValue());

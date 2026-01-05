@@ -21,10 +21,9 @@ public class KuvelConfig {
 
   @Nullable private String namespace;
   private boolean redisEnabled;
-  @Nullable
-  private RedisConnectionData redisConnectionData;
-  @Nullable
-  private String proxyGroupName;
+  @Nullable private RedisConnectionData redisConnectionData;
+  @Nullable private String proxyGroupName;
+  private String labelKeyPrefix;
   private final HashMap<String, String> labelSelectors = new HashMap<>();
 
   public void load() throws IOException {
@@ -76,6 +75,7 @@ public class KuvelConfig {
     }
 
     proxyGroupName = env.getOrDefault("KUVEL_REDIS_GROUPNAME", conf.getString("redis.group-name", null));
+    labelKeyPrefix = env.getOrDefault("KUVEL_LABEL_KEY_PREFIX", conf.getString("label-key-prefix", "kuvel.azisaba.net"));
 
     if (conf.isSet("label-selectors")) {
       conf.getStringList("label-selectors").forEach(s -> {
