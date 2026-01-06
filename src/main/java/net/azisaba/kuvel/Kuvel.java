@@ -30,7 +30,7 @@ import org.slf4j.Logger;
 @Plugin(
     id = "kuvel",
     name = "Kuvel",
-    version = "3.0.0",
+    version = "3.1.0-alpha.2",
     url = "https://github.com/AzisabaNetwork/Kuvel",
     description =
         "Server-discovery Velocity plugin for Minecraft servers running in a Kubernetes cluster.",
