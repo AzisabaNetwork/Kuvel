@@ -89,8 +89,10 @@ labelはconfigで指定します。デフォルトでは、`kuvel.azisaba.net/en
 |:---------------------------------------:|:-------------------:|
 | kuvel.azisaba.net/preferred-server-name | Velocityに登録したいサーバー名 |
 |    kuvel.azisaba.net/initial-server     |    true / false     |
+| kuvel.azisaba.net/disable-name-suffix   |    true / false     |
 
 サーバー名が63文字を超える場合は、ラベルではなく`kuvel.azisaba.net/preferred-server-name`のアノテーションを使用してください。
+Podに`kuvel.azisaba.net/disable-name-suffix=true`を設定すると、`preferred-server-name`をそのまま登録します (`-1`などのsuffixを付与しません)。複数レプリカが検出された場合はエラーを出して追加Podを登録しません。単一レプリカのPod向けの設定です。
 
 ### Podの場合
 
@@ -103,6 +105,7 @@ metadata:
     kuvel.azisaba.net/enable-server-discovery: "true" # KuvelがMinecraftサーバーを見つけるために必要 (Configに依存)
     kuvel.azisaba.net/preferred-server-name: "test-server" # Kuvelがサーバーの命名をするために必要
     # kuvel.azisaba.net/initial-server: "true" # 初期サーバーにする場合はコメントアウトを外す
+    # kuvel.azisaba.net/disable-name-suffix: "true" # preferred-server-nameをそのまま登録する (単一レプリカのみ)
 spec:
   containers:
     - name: test-server

@@ -87,8 +87,10 @@ The following labels are also used for some other features.
 |:---------------------------------------:|:-----------------------------------------------------:|
 | kuvel.azisaba.net/preferred-server-name | Name of the server you wish to register with Velocity |
 |    kuvel.azisaba.net/initial-server     |                     true / false                      |
+| kuvel.azisaba.net/disable-name-suffix   |                     true / false                      |
 
 If server names longer than 63 characters are desired, the `kuvel.azisaba.net/preferred-server-name` annotation can be used instead of the label.
+If `kuvel.azisaba.net/disable-name-suffix=true` is set on a Pod, Kuvel will register the server name exactly as `preferred-server-name` (no `-1` suffix). If multiple replicas are detected, Kuvel logs an error and skips the extra pods. This label is intended for single-replica Pods only.
 
 ### Pod
 
@@ -101,6 +103,7 @@ metadata:
     kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers. Depends on your config.
     kuvel.azisaba.net/preferred-server-name: "test-server" # Required for Kuvel to name the server
     # kuvel.azisaba.net/initial-server: "true" # Uncomment this line if you want to make this server the initial server.   
+    # kuvel.azisaba.net/disable-name-suffix: "true" # Use the exact preferred name (no -1 suffix); single replica only.
 spec:
   containers:
     - name: test-server
