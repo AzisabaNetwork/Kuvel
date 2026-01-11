@@ -291,6 +291,17 @@ public class KuvelServiceHandler {
     }
 
     String serverName = podUidAndServerNameMap.unregister(podUid);
+    if (podUidAndServerNameMap.getUidFromServerName(serverName) != null) {
+      plugin
+          .getLogger()
+          .info(
+              "Unregistered pod: "
+                  + podUid
+                  + " (server name "
+                  + serverName
+                  + " is still in use)");
+      return;
+    }
     plugin
         .getProxy()
         .getServer(serverName)

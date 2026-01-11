@@ -150,22 +150,41 @@ public class RedisServerDiscovery implements ServerDiscovery {
                             .getLabels()
                             .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), metadata.getName());
                   }
-                  boolean disableNameSuffix =
-                      metadata
-                          .getLabels()
-                          .getOrDefault(LabelKeys.DISABLE_NAME_SUFFIX.getKey(labelKeyPrefix), "false")
-                          .equalsIgnoreCase("true");
-                  String serverName =
-                      getServerNameForPod(
-                          metadata,
-                          preferServerName,
-                          disableNameSuffix,
-                          (name) ->
-                              !podIdToServerNameMap.containsValue(name)
-                                  && !loadBalancerMap.containsValue(name)
-                                  && plugin.getProxy().getServer(name).isEmpty());
-                  if (serverName == null) {
-                    return;
+                  boolean disableNameSuffix = isDisableNameSuffix(metadata, labelKeyPrefix);
+                  String serverName = preferServerName;
+                  if (disableNameSuffix) {
+                    String conflictUid = getUidFromServerName(podIdToServerNameMap, preferServerName);
+                    boolean loadBalancerConflict = loadBalancerMap.containsValue(preferServerName);
+                    boolean proxyConflict = plugin.getProxy().getServer(preferServerName).isPresent();
+                    if (loadBalancerConflict || (proxyConflict && conflictUid == null)) {
+                      plugin
+                          .getLogger()
+                          .error(
+                              "Server name {} conflicts with an existing load balancer or server. Skipping pod {}.",
+                              preferServerName,
+                              metadata.getName());
+                      return;
+                    }
+                    if (conflictUid != null) {
+                      plugin
+                          .getLogger()
+                          .warn(
+                              "Taking over server name {} from pod {} for pod {}.",
+                              preferServerName,
+                              conflictUid,
+                              metadata.getName());
+                      podIdToServerNameMap.remove(conflictUid);
+                      jedis.hdel(RedisKeys.SERVERS_PREFIX.getKey() + groupName, conflictUid);
+                      redisConnectionLeader.publishDeletedServer(conflictUid);
+                    }
+                  } else {
+                    serverName =
+                        getValidServerName(
+                            preferServerName,
+                            (name) ->
+                                !podIdToServerNameMap.containsValue(name)
+                                    && !loadBalancerMap.containsValue(name)
+                                    && plugin.getProxy().getServer(name).isEmpty());
                   }
 
                   podIdToServerNameMap.put(uid, serverName);
@@ -270,23 +289,42 @@ public class RedisServerDiscovery implements ServerDiscovery {
                 .getLabels()
                 .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), metadata.getName());
       }
-      boolean disableNameSuffix =
-          metadata
-              .getLabels()
-              .getOrDefault(LabelKeys.DISABLE_NAME_SUFFIX.getKey(labelKeyPrefix), "false")
-              .equalsIgnoreCase("true");
+      boolean disableNameSuffix = isDisableNameSuffix(metadata, labelKeyPrefix);
 
-      serverName =
-          getServerNameForPod(
-              metadata,
-              preferServerName,
-              disableNameSuffix,
-              (name) ->
-                  !serverMap.containsValue(name)
-                      && !loadBalancerMap.containsValue(name)
-                      && plugin.getProxy().getServer(name).isEmpty());
-      if (serverName == null) {
-        return;
+      serverName = preferServerName;
+      if (disableNameSuffix) {
+        String conflictUid = getUidFromServerName(serverMap, preferServerName);
+        boolean loadBalancerConflict = loadBalancerMap.containsValue(preferServerName);
+        boolean proxyConflict = plugin.getProxy().getServer(preferServerName).isPresent();
+        if (loadBalancerConflict || (proxyConflict && conflictUid == null)) {
+          plugin
+              .getLogger()
+              .error(
+                  "Server name {} conflicts with an existing load balancer or server. Skipping pod {}.",
+                  preferServerName,
+                  metadata.getName());
+          return;
+        }
+        if (conflictUid != null) {
+          plugin
+              .getLogger()
+              .warn(
+                  "Taking over server name {} from pod {} for pod {}.",
+                  preferServerName,
+                  conflictUid,
+                  metadata.getName());
+          kuvelServiceHandler.unregisterPod(conflictUid);
+          jedis.hdel(RedisKeys.SERVERS_PREFIX.getKey() + groupName, conflictUid);
+          redisConnectionLeader.publishDeletedServer(conflictUid);
+        }
+      } else {
+        serverName =
+            getValidServerName(
+                preferServerName,
+                (name) ->
+                    !serverMap.containsValue(name)
+                        && !loadBalancerMap.containsValue(name)
+                        && plugin.getProxy().getServer(name).isEmpty());
       }
 
       kuvelServiceHandler.getPodUidAndServerNameMap().register(uid, serverName);
@@ -352,27 +390,19 @@ public class RedisServerDiscovery implements ServerDiscovery {
     return name;
   }
 
-  private String getServerNameForPod(
-      ObjectMeta metadata,
-      String preferServerName,
-      boolean disableNameSuffix,
-      Function<String, Boolean> isValid) {
-    if (!disableNameSuffix) {
-      return getValidServerName(preferServerName, isValid);
-    }
+  private boolean isDisableNameSuffix(ObjectMeta metadata, String labelKeyPrefix) {
+    return metadata
+        .getLabels()
+        .getOrDefault(LabelKeys.DISABLE_NAME_SUFFIX.getKey(labelKeyPrefix), "false")
+        .equalsIgnoreCase("true");
+  }
 
-    if (isValid.apply(preferServerName)) {
-      return preferServerName;
+  private String getUidFromServerName(Map<String, String> uidToServerNameMap, String serverName) {
+    for (Entry<String, String> entry : uidToServerNameMap.entrySet()) {
+      if (entry.getValue().equals(serverName)) {
+        return entry.getKey();
+      }
     }
-
-    String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
-    plugin
-        .getLogger()
-        .error(
-            "Multiple replicas detected for server name {} with {}=true. Only one replica is supported; skipping pod {}.",
-            preferServerName,
-            LabelKeys.DISABLE_NAME_SUFFIX.getKey(labelKeyPrefix),
-            metadata.getName());
     return null;
   }
 }
