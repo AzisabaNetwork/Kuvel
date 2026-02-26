@@ -191,5 +191,16 @@ issue. Kuvel uses keys whose key name begins with `kuvel:`.
 
 On 1.x, this feature was optional, but from 2.0.0, this setting is enabled by default.
 
+## Commands
+
+Use `/kuvel` to inspect, update, and repair server registration state.
+
+- `/kuvel status` - show registration summary and missing registrations
+- `/kuvel list <pods|loadbalancers>` - list UID to server-name mappings
+- `/kuvel register <podUid> <serverName>` - register a pod by UID
+- `/kuvel unregister <podUid>` - unregister a pod by UID
+- `/kuvel setname <podUid> <serverName>` - change a pod's registered server name
+- `/kuvel repair` - re-register missing entries and clean broken mappings
+
 ## License
 [GNU General Public License v3.0](LICENSE)
