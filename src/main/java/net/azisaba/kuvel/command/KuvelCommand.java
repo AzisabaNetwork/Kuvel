@@ -97,13 +97,18 @@ public class KuvelCommand implements SimpleCommand {
         source.sendMessage(Component.text("Usage: /kuvel register <podUid> <serverName>"));
         return;
       }
+      String mappedUid = handler.getPodUidAndServerNameMap().getUidFromServerName(args[2]);
+      if (mappedUid != null && !mappedUid.equals(args[1])) {
+        source.sendMessage(
+            Component.text("Server name is already mapped to another pod uid: " + mappedUid));
+        return;
+      }
       if (plugin.getProxy().getServer(args[2]).isPresent()) {
         source.sendMessage(Component.text("Server name is already registered: " + args[2]));
         return;
       }
 
-      handler.registerPod(args[1], args[2]);
-      if (args[2].equals(handler.getPodUidAndServerNameMap().getServerNameFromUid(args[1]))) {
+      if (handler.registerPod(args[1], args[2])) {
         source.sendMessage(Component.text("Registered pod mapping: " + args[1] + " -> " + args[2]));
       } else {
         source.sendMessage(Component.text("Failed to register pod mapping."));
@@ -132,21 +137,33 @@ public class KuvelCommand implements SimpleCommand {
         source.sendMessage(Component.text("Usage: /kuvel setname <podUid> <serverName>"));
         return;
       }
-      if (plugin.getProxy().getServer(args[2]).isPresent()) {
-        source.sendMessage(Component.text("Server name is already registered: " + args[2]));
+      String oldName = handler.getPodUidAndServerNameMap().getServerNameFromUid(args[1]);
+      if (oldName != null && args[2].equals(oldName)) {
+        source.sendMessage(Component.text("Server name is already set for the pod uid."));
         return;
       }
 
-      String oldName = handler.getPodUidAndServerNameMap().getServerNameFromUid(args[1]);
+      String mappedUid = handler.getPodUidAndServerNameMap().getUidFromServerName(args[2]);
+      if (mappedUid != null && !mappedUid.equals(args[1])) {
+        source.sendMessage(
+            Component.text("Server name is already mapped to another pod uid: " + mappedUid));
+        return;
+      }
+
+      if (plugin.getProxy().getServer(args[2]).isPresent() && mappedUid == null) {
+        source.sendMessage(Component.text("Server name is already registered by another server."));
+        return;
+      }
+
       if (oldName != null) {
         handler.unregisterPod(args[1]);
       }
 
-      handler.registerPod(args[1], args[2]);
-      if (args[2].equals(handler.getPodUidAndServerNameMap().getServerNameFromUid(args[1]))) {
+      if (handler.registerPod(args[1], args[2])) {
+        String previousName = oldName == null ? "previously unregistered" : oldName;
         source.sendMessage(
             Component.text(
-                "Updated pod mapping: " + args[1] + " -> " + args[2] + " (was " + oldName + ")"));
+                "Updated pod mapping: " + args[1] + " -> " + args[2] + " (was " + previousName + ")"));
       } else {
         source.sendMessage(Component.text("Failed to update pod mapping."));
       }
@@ -154,39 +171,39 @@ public class KuvelCommand implements SimpleCommand {
     }
 
     if (args[0].equalsIgnoreCase("repair")) {
-      int repairedPod = 0;
-      int cleanedPod = 0;
+      int repairedPodCount = 0;
+      int cleanedPodCount = 0;
       for (Map.Entry<String, String> entry : handler.getPodUidAndServerNameMap().getAllMap().entrySet()) {
         if (plugin.getProxy().getServer(entry.getValue()).isPresent()) {
           continue;
         }
-        handler.registerPod(entry.getKey(), entry.getValue());
-        if (plugin.getProxy().getServer(entry.getValue()).isPresent()) {
-          repairedPod++;
+        boolean success = handler.registerPod(entry.getKey(), entry.getValue());
+        if (success && plugin.getProxy().getServer(entry.getValue()).isPresent()) {
+          repairedPodCount++;
         } else {
           handler.unregisterPod(entry.getKey());
-          cleanedPod++;
+          cleanedPodCount++;
         }
       }
 
-      int cleanedLoadBalancer = 0;
+      int cleanedLoadBalancerCount = 0;
       for (Map.Entry<String, String> entry :
           handler.getReplicaSetUidAndServerNameMap().getAllMap().entrySet()) {
         if (plugin.getProxy().getServer(entry.getValue()).isPresent()) {
           continue;
         }
         handler.unregisterLoadBalancer(entry.getKey());
-        cleanedLoadBalancer++;
+        cleanedLoadBalancerCount++;
       }
 
       source.sendMessage(
           Component.text(
               "Repair complete: repairedPod="
-                  + repairedPod
+                  + repairedPodCount
                   + ", cleanedPod="
-                  + cleanedPod
+                  + cleanedPodCount
                   + ", cleanedLoadBalancer="
-                  + cleanedLoadBalancer));
+                  + cleanedLoadBalancerCount));
       return;
     }
 
