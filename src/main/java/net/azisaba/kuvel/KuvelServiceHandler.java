@@ -262,7 +262,7 @@ public class KuvelServiceHandler {
    * @param podUid The pod uid to register.
    * @param serverName The name of the server.
    */
-  public void registerPod(String podUid, String serverName) {
+  public boolean registerPod(String podUid, String serverName) {
     FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
         .inNamespace(namespace);
 
@@ -277,7 +277,7 @@ public class KuvelServiceHandler {
         .filter(p -> p.getMetadata().getUid().equals(podUid))
         .findFirst();
 
-    pod.ifPresent(p -> registerPod(p, serverName));
+    return pod.map(p -> registerPod(p, serverName)).orElse(false);
   }
 
   /**

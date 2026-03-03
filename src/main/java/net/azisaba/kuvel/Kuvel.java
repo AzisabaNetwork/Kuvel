@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import lombok.Getter;
 import net.azisaba.kuvel.config.KuvelConfig;
+import net.azisaba.kuvel.command.KuvelCommand;
 import net.azisaba.kuvel.discovery.impl.redis.RedisLoadBalancerDiscovery;
 import net.azisaba.kuvel.discovery.impl.redis.RedisServerDiscovery;
 import net.azisaba.kuvel.listener.ChooseInitialServerListener;
@@ -151,6 +152,12 @@ public class Kuvel {
     proxy
         .getEventManager()
         .register(this, new ChooseInitialServerListener(proxy, kuvelServiceHandler));
+
+    proxy
+        .getCommandManager()
+        .register(
+            proxy.getCommandManager().metaBuilder("kuvel").plugin(this).build(),
+            new KuvelCommand(this));
   }
 
   @Subscribe
