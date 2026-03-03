@@ -221,7 +221,17 @@ public class KuvelServiceHandler {
    * @param serverName The name of the server.
    */
   public void registerPod(Pod pod, String serverName) {
+    var currentServer = plugin.getProxy().getServer(serverName);
+
+    if (currentServer.isPresent() && podUidAndServerNameMap.getUidFromServerName(serverName) == null) {
+      plugin
+          .getLogger()
+          .warn("Skipped registering server " + serverName + " because the name is already used");
+      return;
+    }
+
     InetSocketAddress address = new InetSocketAddress(pod.getStatus().getPodIP(), 25565);
+    currentServer.ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
     plugin.getProxy().registerServer(new ServerInfo(serverName, address));
     podUidAndServerNameMap.register(pod.getMetadata().getUid(), serverName);
 
