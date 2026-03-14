@@ -65,12 +65,8 @@
 
   <repositories>
     <repository>
-      <id>central</id>
-      <url>https://repo.maven.apache.org/maven2</url>
-    </repository>
-    <repository>
       <id>velocity</id>
-      <url>https://repo.papermc.io/repository/maven-public/</url>
+      <url>https://nexus.velocitypowered.com/repository/maven-public/</url>
     </repository>
   </repositories>
 
