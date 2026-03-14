@@ -234,6 +234,7 @@ public class KuvelServiceHandler {
     }
 
     InetSocketAddress address = new InetSocketAddress(ip, port);
+    plugin.getProxy().getServer(serverName).ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
     plugin.getProxy().registerServer(new ServerInfo(serverName, address));
     podUidAndServerNameMap.register(pod.getMetadata().getUid(), serverName);
 
