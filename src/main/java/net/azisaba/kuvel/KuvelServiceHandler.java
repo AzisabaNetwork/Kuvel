@@ -1,7 +1,10 @@
 package net.azisaba.kuvel;
 
 import com.velocitypowered.api.proxy.server.ServerInfo;
+import io.fabric8.kubernetes.api.model.Container;
+import io.fabric8.kubernetes.api.model.ContainerPort;
 import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -11,6 +14,9 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
+
+import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
+import io.fabric8.kubernetes.client.dsl.PodResource;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.azisaba.kuvel.discovery.LoadBalancerDiscovery;
@@ -123,13 +129,14 @@ public class KuvelServiceHandler {
    */
   private void updateLoadBalancerEndpoints(LoadBalancer loadBalancer) {
     // TODO: This may be replaced by more improved function
-    List<Pod> pods =
-        client
-            .pods()
-            .inNamespace(namespace)
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), "true")
-            .list()
-            .getItems();
+    FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
+        .inNamespace(namespace);
+
+    for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+      request = request.withLabel(e.getKey(), e.getValue());
+    }
+
+    List<Pod> pods = request.list().getItems();
 
     List<String> endpoints = new ArrayList<>();
     for (Pod pod : pods) {
@@ -152,26 +159,14 @@ public class KuvelServiceHandler {
    */
   public void setAndRunServerDiscovery(@Nullable ServerDiscovery newServerDiscovery) {
     if (newServerDiscovery != null) {
-      HashMap<String, Pod> servers = newServerDiscovery.getServersForStartup();
-
-      for (Entry<String, Pod> entry : servers.entrySet()) {
-        Pod pod = entry.getValue();
-        InetSocketAddress address = new InetSocketAddress(pod.getStatus().getPodIP(), 25565);
-        plugin.getProxy().getServer(entry.getKey()).ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
-        plugin.getProxy().registerServer(new ServerInfo(entry.getKey(), address));
-
-        String initialServerStr = pod.getMetadata().getLabels().getOrDefault(
-                LabelKeys.INITIAL_SERVER.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), "false");
-        if (Boolean.parseBoolean(initialServerStr)) {
-          initialServerNames.add(entry.getKey());
-        }
-
-        for (LoadBalancer loadBalancer : loadBalancerServerMap.values()) {
-          if (pod.hasOwnerReferenceFor(loadBalancer.getReplicaSetUid())) {
-            loadBalancer.addEndpoint(entry.getKey());
-          }
-        }
-      }
+      newServerDiscovery.getServersForStartup()
+          .forEach((serverName, pod) -> {
+            boolean success = registerPod(pod, serverName);
+            if (!success) {
+              plugin.getProxy().getServer(serverName).ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
+                plugin.getLogger().warn("Failed to register pod. ( serverName = {}, pod = {} )", serverName, pod.getMetadata().getUid());
+            }
+          });
 
       newServerDiscovery.start();
     }
@@ -217,8 +212,9 @@ public class KuvelServiceHandler {
   /**
    * Register a pod for the specified server name.
    *
-   * @param pod The pod to register.
+   * @param pod        The pod to register.
    * @param serverName The name of the server.
+   * @return true if the pod is registered successfully.
    */
   public void registerPod(Pod pod, String serverName) {
     var currentServer = plugin.getProxy().getServer(serverName);
@@ -230,7 +226,23 @@ public class KuvelServiceHandler {
       return;
     }
 
-    InetSocketAddress address = new InetSocketAddress(pod.getStatus().getPodIP(), 25565);
+    String ip = pod.getStatus().getPodIP();
+    if (ip == null) {
+      return false;
+    }
+
+    int port = 25565;
+    Optional<ContainerPort> containerPort = pod.getSpec().getContainers().stream()
+        .map(Container::getPorts)
+        .flatMap(List::stream)
+        .filter(p -> p.getName() != null && p.getName().equalsIgnoreCase("minecraft"))
+        .findFirst();
+
+    if (containerPort.isPresent()) {
+      port = containerPort.get().getContainerPort();
+    }
+    
+    InetSocketAddress address = new InetSocketAddress(ip, port);
     currentServer.ifPresent(server -> plugin.getProxy().unregisterServer(server.getServerInfo()));
     plugin.getProxy().registerServer(new ServerInfo(serverName, address));
     podUidAndServerNameMap.register(pod.getMetadata().getUid(), serverName);
@@ -251,6 +263,7 @@ public class KuvelServiceHandler {
     plugin
         .getLogger()
         .info("Registered server: " + serverName + " (" + pod.getMetadata().getUid() + ")");
+    return true;
   }
 
   /**
@@ -259,20 +272,22 @@ public class KuvelServiceHandler {
    * @param podUid The pod uid to register.
    * @param serverName The name of the server.
    */
-  public void registerPod(String podUid, String serverName) {
-    Optional<Pod> pod =
-        client
-            .pods()
-            .inNamespace(namespace)
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(
-                    plugin.getKuvelConfig().getLabelKeyPrefix()), "true")
-            .list()
-            .getItems()
-            .stream()
-            .filter(p -> p.getMetadata().getUid().equals(podUid))
-            .findFirst();
+  public boolean registerPod(String podUid, String serverName) {
+    FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
+        .inNamespace(namespace);
 
-    pod.ifPresent(p -> registerPod(p, serverName));
+    for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+      request = request.withLabel(e.getKey(), e.getValue());
+    }
+
+    Optional<Pod> pod = request
+        .list()
+        .getItems()
+        .stream()
+        .filter(p -> p.getMetadata().getUid().equals(podUid))
+        .findFirst();
+
+    return pod.map(p -> registerPod(p, serverName)).orElse(false);
   }
 
   /**
@@ -286,6 +301,17 @@ public class KuvelServiceHandler {
     }
 
     String serverName = podUidAndServerNameMap.unregister(podUid);
+    if (podUidAndServerNameMap.getUidFromServerName(serverName) != null) {
+      plugin
+          .getLogger()
+          .info(
+              "Unregistered pod: "
+                  + podUid
+                  + " (server name "
+                  + serverName
+                  + " is still in use)");
+      return;
+    }
     plugin
         .getProxy()
         .getServer(serverName)

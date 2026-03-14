@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +29,10 @@ public class VelocityConfigLoader {
 
   public static VelocityConfigLoader load(File file) {
     return new VelocityConfigLoader(file).load();
+  }
+
+  public boolean isSet(@Nonnull String key) {
+    return dataMap.containsKey(key);
   }
 
   public String getString(@Nonnull String key, String defaultValue) {
@@ -78,6 +83,17 @@ public class VelocityConfigLoader {
   public @Nullable Object get(@Nonnull String key, Object defaultValue) {
     String lowerKey = key.toLowerCase(Locale.ROOT);
     return dataMap.getOrDefault(lowerKey, defaultValue);
+  }
+
+  public List<String> getStringList(@Nonnull String key) {
+    String lowerKey = key.toLowerCase(Locale.ROOT);
+    if (dataMap.containsKey(lowerKey)) {
+      return ((List<?>) dataMap.get(lowerKey)).stream()
+          .map(Object::toString)
+          .collect(Collectors.toList());
+    } else {
+      return List.of();
+    }
   }
 
   public String getString(@Nonnull String key) {

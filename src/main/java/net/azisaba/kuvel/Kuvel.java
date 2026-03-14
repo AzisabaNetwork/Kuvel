@@ -11,12 +11,14 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import lombok.Getter;
 import net.azisaba.kuvel.config.KuvelConfig;
+import net.azisaba.kuvel.command.KuvelCommand;
 import net.azisaba.kuvel.discovery.impl.redis.RedisLoadBalancerDiscovery;
 import net.azisaba.kuvel.discovery.impl.redis.RedisServerDiscovery;
 import net.azisaba.kuvel.listener.ChooseInitialServerListener;
@@ -29,7 +31,7 @@ import org.slf4j.Logger;
 @Plugin(
     id = "kuvel",
     name = "Kuvel",
-    version = "2.1.1-rc1",
+    version = "3.1.0-alpha.3",
     url = "https://github.com/AzisabaNetwork/Kuvel",
     description =
         "Server-discovery Velocity plugin for Minecraft servers running in a Kubernetes cluster.",
@@ -50,7 +52,7 @@ public class Kuvel {
   private KuvelConfig kuvelConfig;
 
   @Inject
-  public Kuvel(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
+  public Kuvel(ProxyServer server, org.slf4j.Logger logger, @DataDirectory Path dataDirectory) {
     this.proxy = server;
     this.logger = logger;
     this.dataDirectory = dataDirectory.toFile();
@@ -58,7 +60,13 @@ public class Kuvel {
 
   @Subscribe
   public void onProxyInitialization(ProxyInitializeEvent event) {
-    client = new KubernetesClientBuilder().build();
+    ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+    try {
+      Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
+      client = new KubernetesClientBuilder().build();
+    } finally {
+      Thread.currentThread().setContextClassLoader(originalClassLoader);
+    }
 
     kuvelConfig = new KuvelConfig(this);
     try {
@@ -66,6 +74,16 @@ public class Kuvel {
     } catch (Exception e) {
       logger.error("Failed to load config file. Plugin feature will be disabled.", e);
       return;
+    }
+
+    if (kuvelConfig.getLabelSelectors().isEmpty()) {
+      logger.error("No label selectors are specified. Plugin feature will be disabled.");
+      return;
+    }
+
+    getLogger().info("Loaded " + kuvelConfig.getLabelSelectors().size() + " selectors:");
+    for (Map.Entry<String, String> entry : kuvelConfig.getLabelSelectors().entrySet()) {
+      getLogger().info(" - " + entry.getKey() + ": " + entry.getValue());
     }
 
     kuvelServiceHandler = new KuvelServiceHandler(this, client, kuvelConfig.getNamespace());
@@ -134,6 +152,12 @@ public class Kuvel {
     proxy
         .getEventManager()
         .register(this, new ChooseInitialServerListener(proxy, kuvelServiceHandler));
+
+    proxy
+        .getCommandManager()
+        .register(
+            proxy.getCommandManager().metaBuilder("kuvel").plugin(this).build(),
+            new KuvelCommand(this));
   }
 
   @Subscribe

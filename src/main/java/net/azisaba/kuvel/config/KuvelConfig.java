@@ -2,6 +2,8 @@ package net.azisaba.kuvel.config;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import javax.annotation.Nullable;
 import lombok.Getter;
@@ -22,6 +24,7 @@ public class KuvelConfig {
   @Nullable private RedisConnectionData redisConnectionData;
   @Nullable private String proxyGroupName;
   private String labelKeyPrefix;
+  private final HashMap<String, String> labelSelectors = new HashMap<>();
 
   public void load() throws IOException {
     File uppercaseDataFolder = new File(plugin.getDataDirectory().getParentFile(), "Kuvel");
@@ -73,5 +76,14 @@ public class KuvelConfig {
 
     proxyGroupName = env.getOrDefault("KUVEL_REDIS_GROUPNAME", conf.getString("redis.group-name", null));
     labelKeyPrefix = env.getOrDefault("KUVEL_LABEL_KEY_PREFIX", conf.getString("label-key-prefix", "kuvel.azisaba.net"));
+
+    if (conf.isSet("label-selectors")) {
+      conf.getStringList("label-selectors").forEach(s -> {
+        String[] split = s.split("=", 2);
+        if (split.length == 2) {
+          labelSelectors.put(split[0].toLowerCase(Locale.ROOT), split[1].toLowerCase(Locale.ROOT));
+        }
+      });
+    }
   }
 }

@@ -1,7 +1,9 @@
 package net.azisaba.kuvel.discovery.impl.redis;
 
 import com.velocitypowered.api.scheduler.ScheduledTask;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -10,11 +12,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+
+import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
+import io.fabric8.kubernetes.client.dsl.PodResource;
 import lombok.RequiredArgsConstructor;
 import net.azisaba.kuvel.Kuvel;
 import net.azisaba.kuvel.KuvelServiceHandler;
@@ -50,13 +56,14 @@ public class RedisServerDiscovery implements ServerDiscovery {
 
     Runnable runnable =
         () -> {
-          List<Pod> podList =
-              client
-                  .pods()
-                  .inNamespace(namespace)
-                  .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), "true")
-                  .list()
-                  .getItems();
+          FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
+              .inNamespace(namespace);
+
+          for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+            request = request.withLabel(e.getKey(), e.getValue());
+          }
+
+          List<Pod> podList = request.list().getItems();
 
           for (Pod pod : podList) {
             if (podDiffChecker.diff(pod)) {
@@ -112,34 +119,73 @@ public class RedisServerDiscovery implements ServerDiscovery {
         Map<String, String> loadBalancerMap =
             jedis.hgetAll(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName);
 
-        String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
-        client
-            .pods()
-            .inNamespace(namespace)
-            .withLabel(LabelKeys.ENABLE_SERVER_DISCOVERY.getKey(labelKeyPrefix), "true")
+        //String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix()
+        FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
+            .inNamespace(namespace);
+
+        for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+          request = request.withLabel(e.getKey(), e.getValue());
+        }
+
+        request
             .withField("status.phase", "Running")
             .list()
             .getItems()
             .forEach(
                 pod -> {
-                  String uid = pod.getMetadata().getUid();
+                  ObjectMeta metadata = pod.getMetadata();
+                  String uid = metadata.getUid();
                   if (podIdToServerNameMap.containsKey(uid)) {
                     return;
                   }
 
+                  String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
                   String preferServerName =
-                      pod.getMetadata()
-                          .getLabels()
-                          .getOrDefault(
-                              LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix),
-                              pod.getMetadata().getName());
-                  String serverName =
-                      getValidServerName(
-                          preferServerName,
-                          (name) ->
-                              !podIdToServerNameMap.containsValue(name)
-                                  && !loadBalancerMap.containsValue(name)
-                                  && plugin.getProxy().getServer(name).isEmpty());
+                      metadata
+                          .getAnnotations()
+                          .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), null);
+                  if (preferServerName == null) {
+                    preferServerName =
+                        metadata
+                            .getLabels()
+                            .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), metadata.getName());
+                  }
+                  boolean disableNameSuffix = isDisableNameSuffix(metadata, labelKeyPrefix);
+                  String serverName = preferServerName;
+                  if (disableNameSuffix) {
+                    String conflictUid = getUidFromServerName(podIdToServerNameMap, preferServerName);
+                    boolean loadBalancerConflict = loadBalancerMap.containsValue(preferServerName);
+                    boolean proxyConflict = plugin.getProxy().getServer(preferServerName).isPresent();
+                    if (loadBalancerConflict || (proxyConflict && conflictUid == null)) {
+                      plugin
+                          .getLogger()
+                          .error(
+                              "Server name {} conflicts with an existing load balancer or server. Skipping pod {}.",
+                              preferServerName,
+                              metadata.getName());
+                      return;
+                    }
+                    if (conflictUid != null) {
+                      plugin
+                          .getLogger()
+                          .warn(
+                              "Taking over server name {} from pod {} for pod {}.",
+                              preferServerName,
+                              conflictUid,
+                              metadata.getName());
+                      podIdToServerNameMap.remove(conflictUid);
+                      jedis.hdel(RedisKeys.SERVERS_PREFIX.getKey() + groupName, conflictUid);
+                      redisConnectionLeader.publishDeletedServer(conflictUid);
+                    }
+                  } else {
+                    serverName =
+                        getValidServerName(
+                            preferServerName,
+                            (name) ->
+                                !podIdToServerNameMap.containsValue(name)
+                                    && !loadBalancerMap.containsValue(name)
+                                    && plugin.getProxy().getServer(name).isEmpty());
+                  }
 
                   podIdToServerNameMap.put(uid, serverName);
                   jedis.hset(RedisKeys.SERVERS_PREFIX + groupName, uid, serverName);
@@ -163,9 +209,9 @@ public class RedisServerDiscovery implements ServerDiscovery {
           .info(verb + " server: " + entry.getValue() + " (" + entry.getKey() + ")");
       Pod pod = getPodByUid(entry.getKey());
       if (pod == null) {
-        plugin
-            .getLogger()
-            .warn("Pod " + entry.getKey() + " for server " + entry.getValue() + " not found");
+          plugin
+                  .getLogger()
+                  .warn("Pod {} for server {} not found", entry.getKey(), entry.getValue());
         continue;
       }
 
@@ -231,24 +277,70 @@ public class RedisServerDiscovery implements ServerDiscovery {
       Map<String, String> loadBalancerMap =
           jedis.hgetAll(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName);
 
+      ObjectMeta metadata = pod.getMetadata();
+      String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
       String preferServerName =
-          pod.getMetadata()
-              .getLabels()
-              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), pod.getMetadata().getName());
+          metadata
+              .getAnnotations()
+              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), null);
+      if (preferServerName == null) {
+        preferServerName =
+            metadata
+                .getLabels()
+                .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), metadata.getName());
+      }
+      boolean disableNameSuffix = isDisableNameSuffix(metadata, labelKeyPrefix);
 
-      serverName =
-          getValidServerName(
-              preferServerName,
-              (name) ->
-                  !serverMap.containsValue(name)
-                      && !loadBalancerMap.containsValue(name)
-                      && plugin.getProxy().getServer(name).isEmpty());
+      serverName = preferServerName;
+      if (disableNameSuffix) {
+        String conflictUid = getUidFromServerName(serverMap, preferServerName);
+        boolean loadBalancerConflict = loadBalancerMap.containsValue(preferServerName);
+        boolean proxyConflict = plugin.getProxy().getServer(preferServerName).isPresent();
+        if (loadBalancerConflict || (proxyConflict && conflictUid == null)) {
+          plugin
+              .getLogger()
+              .error(
+                  "Server name {} conflicts with an existing load balancer or server. Skipping pod {}.",
+                  preferServerName,
+                  metadata.getName());
+          return;
+        }
+        if (conflictUid != null) {
+          plugin
+              .getLogger()
+              .warn(
+                  "Taking over server name {} from pod {} for pod {}.",
+                  preferServerName,
+                  conflictUid,
+                  metadata.getName());
+          kuvelServiceHandler.unregisterPod(conflictUid);
+          jedis.hdel(RedisKeys.SERVERS_PREFIX.getKey() + groupName, conflictUid);
+          redisConnectionLeader.publishDeletedServer(conflictUid);
+        }
+      } else {
+        serverName =
+            getValidServerName(
+                preferServerName,
+                (name) ->
+                    !serverMap.containsValue(name)
+                        && !loadBalancerMap.containsValue(name)
+                        && plugin.getProxy().getServer(name).isEmpty());
+      }
 
       kuvelServiceHandler.getPodUidAndServerNameMap().register(uid, serverName);
-      jedis.hset(RedisKeys.SERVERS_PREFIX.getKey() + groupName, uid, serverName);
 
-      redisConnectionLeader.publishNewServer(uid, serverName);
-      kuvelServiceHandler.registerPod(pod, serverName);
+      boolean success = false;
+      try {
+        success = kuvelServiceHandler.registerPod(pod, serverName);
+        if (success) {
+          redisConnectionLeader.publishNewServer(uid, serverName);
+          jedis.hset(RedisKeys.SERVERS_PREFIX.getKey() + groupName, uid, serverName);
+        }
+      } finally {
+        if (!success) {
+          kuvelServiceHandler.getPodUidAndServerNameMap().unregister(uid);
+        }
+      }
     }
   }
 
@@ -271,7 +363,14 @@ public class RedisServerDiscovery implements ServerDiscovery {
   }
 
   private Pod getPodByUid(String podUid) {
-    return client.pods().list().getItems().stream()
+    FilterWatchListDeletable<Pod, PodList, PodResource> request = client.pods()
+        .inAnyNamespace();
+
+    for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+      request = request.withLabel(e.getKey(), e.getValue());
+    }
+
+    return request.list().getItems().stream()
         .filter(pod -> pod.getMetadata().getUid().equals(podUid))
         .findFirst()
         .orElse(null);
@@ -291,21 +390,19 @@ public class RedisServerDiscovery implements ServerDiscovery {
     return name;
   }
 
-  private Runnable getDelayRunnable(ExecutorService executor, Runnable runnable) {
-    return () -> {
-      try {
-        Thread.sleep(3000);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
+  private boolean isDisableNameSuffix(ObjectMeta metadata, String labelKeyPrefix) {
+    return metadata
+        .getLabels()
+        .getOrDefault(LabelKeys.DISABLE_NAME_SUFFIX.getKey(labelKeyPrefix), "false")
+        .equalsIgnoreCase("true");
+  }
 
-      try {
-        runnable.run();
-      } catch (Exception ex) {
-        ex.printStackTrace();
-      } finally {
-        executor.submit(getDelayRunnable(executor, runnable));
+  private String getUidFromServerName(Map<String, String> uidToServerNameMap, String serverName) {
+    for (Entry<String, String> entry : uidToServerNameMap.entrySet()) {
+      if (entry.getValue().equals(serverName)) {
+        return entry.getKey();
       }
-    };
+    }
+    return null;
   }
 }

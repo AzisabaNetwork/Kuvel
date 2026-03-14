@@ -45,14 +45,4 @@ public class LoadBalancer {
 
     return strategy.choose(servers);
   }
-
-  //  public List<RegisteredServer> getTargets(int count) {
-  //    List<RegisteredServer> servers =
-  //        endpointServers.stream()
-  //            .map(name -> proxy.getServer(name).orElse(null))
-  //            .filter(Objects::nonNull)
-  //            .collect(Collectors.toList());
-  //
-  //    return strategy.choose(servers, count);
-  //  }
 }

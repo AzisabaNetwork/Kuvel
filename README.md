@@ -1,65 +1,71 @@
 # Kuvel
 ## Overview
 Kuvel, A service discovery plugin for Velocity. It will automatically discover Minecraft servers and
-register/unregister them in Velocity.
+register/unregister them within Velocity.
 
 ## Features
 
-* Monitor Minecraft pods in a Kubernetes cluster and automatically register/unregister them with
+* Monitor Minecraft pods in a Kubernetes cluster and automatically register/unregister them within
   Velocity
 * Create a LoadBalancer server and distribute players trying to join to the linked servers.
-* Synchronize server names across multiple Velocity servers using Redis
+* Synchronize server names across multiple Velocity instances using Redis
 
 ## Installing
 
 The Plugin can be downloaded
 from [Releases](https://github.com/AzisabaNetwork/Kuvel/releases/latest). Download `Kuvel.jar` and
-install it into Velocity plugins directory. Also, you have to fill in the configuration file.
+install it into Velocity plugins directory. The config file requires initial setup as seen below.
 
 ```yml
 # The kubernetes namespace to use for the server discovery.
 namespace: ""
-# Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
+# The prefix to use for the keys of the server labels or annotations.
+label-key-prefix: "kuvel.azisaba.net"
+# Server name synchronization by Redis is required in load-balanced environments using multiple Velocity instances.
 redis:
-  group-name: "production"
+  group-name: "develop"
   connection:
     hostname: "redis"
     port: 6379
-    # username is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
+    # username is optional. if you have authentication enabled, you can use it here. Otherwise you can leave it blank or null.
     username: "default"
-    # password is optional. if you have authentication enabled, you can use it here. Or leave it blank or null.
+    # password is optional. if you have authentication enabled, you can use it here. Otherwise you can leave it blank or null.
     password: "password"
+
+# label-selectors are used to filter Pods and ReplicaSets to be registered.
+label-selectors:
+  - "kuvel.azisaba.net/enable-server-discovery=true"
 ```
 
 Alternatively you can use environment variables to configure Kuvel. The environment variable will override
- the config.yml and are `KUVEL_NAMESPACE`, `KUVEL_REDIS_GROUPNAME`, `KUVEL_REDIS_CONNECTION_HOSTNAME`,
-`KUVEL_REDIS_CONNECTION_PORT`, `KUVEL_REDIS_CONNECTION_USERNAME`, and `KUVEL_REDIS_CONNECTION_PASSWORD`.
+ the config.yml and are `KUVEL_NAMESPACE`, `KUVEL_LABEL_KEY_PREFIX`, `KUVEL_REDIS_GROUPNAME`, 
+`KUVEL_REDIS_CONNECTION_HOSTNAME`, `KUVEL_REDIS_CONNECTION_PORT`, `KUVEL_REDIS_CONNECTION_USERNAME`, and 
+`KUVEL_REDIS_CONNECTION_PASSWORD`.
 
-In order for Kuvel to monitor the server, you must request permission from Kubernetes to allow
-Velocity pods discovery Minecraft servers. For Velocity pods, please allow get/list/watch to Pods
+In order for Kuvel to monitor the server, you must request permission from Kubernetes. For Velocity pods, please allow get/list/watch to Pods
 and ReplicaSets.
 
 ```yml
- apiVersion: v1
- kind: ServiceAccount
- metadata:
-   name: velocity-account
-   namespace: default
-   ---
- apiVersion: rbac.authorization.k8s.io/v1
- kind: ClusterRoleBinding
- metadata:
-   name: velocity-clusterrolebiding
- roleRef:
-   apiGroup: rbac.authorization.k8s.io
-   kind: ClusterRole
-   name: view
- subjects:
- - kind: ServiceAccount
-   name: velocity-account
-   namespace: default
- ```
- ```yml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velocity-account
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: velocity-clusterrolebiding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: ServiceAccount
+  name: velocity-account
+  namespace: default
+```
+```yml
 # Apply ServiceAccount to the Velocity pod
 apiVersion: apps/v1
 kind: ...
@@ -67,17 +73,24 @@ kind: ...
 spec:
   serviceAccountName: velocity-account
 # ...
- ```
+```
 
 ## Enable Service Discovery on the Minecraft Servers
 
-To tell Kuvel that the pod is a Minecraft server, use Label feature of Kubernetes.
+To tell Kuvel that the pod is a Minecraft server, use the Kubernetes label service.  
+The label keys and values are specified in the config file. By default, the label key
+is `kuvel.azisaba.net/enable-server-discovery` and the value is `true`.
 
-|                Label Name                 | Value |
-|:-----------------------------------------:|:---:|
-| kuvel.azisaba.net/enable-server-discovery |true / false|
-|  kuvel.azisaba.net/preferred-server-name  |Name of the server you wish to register with Velocity|
-|     kuvel.azisaba.net/initial-server      |true / false|
+The following labels are also used for some other features.
+
+|               Label Name                |                         Value                         |
+|:---------------------------------------:|:-----------------------------------------------------:|
+| kuvel.azisaba.net/preferred-server-name | Name of the server you wish to register with Velocity |
+|    kuvel.azisaba.net/initial-server     |                     true / false                      |
+| kuvel.azisaba.net/disable-name-suffix   |                     true / false                      |
+
+If server names longer than 63 characters are desired, the `kuvel.azisaba.net/preferred-server-name` annotation can be used instead of the label.
+If `kuvel.azisaba.net/disable-name-suffix=true` is set on a Pod, Kuvel will register the server name exactly as `preferred-server-name` (no `-1` suffix). If multiple replicas are detected, Kuvel logs an error and skips the extra pods. This label is intended for single-replica Pods only.
 
 ### Pod
 
@@ -87,9 +100,10 @@ kind: Pod
 metadata:
   name: test-server
   labels:
-    kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers.
-    kuvel.azisaba.net/preferred-server-name: : "test-server" # Required for Kuvel to name the server
-    # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this server the initial server.   
+    kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers. Depends on your config.
+    kuvel.azisaba.net/preferred-server-name: "test-server" # Required for Kuvel to name the server
+    # kuvel.azisaba.net/initial-server: "true" # Uncomment this line if you want to make this server the initial server.   
+    # kuvel.azisaba.net/disable-name-suffix: "true" # Use the exact preferred name (no -1 suffix); single replica only.
 spec:
   containers:
     - name: test-server
@@ -113,9 +127,9 @@ spec:
     metadata:
       labels:
         app: test-server-deployment
-        kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers.
+        kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers. Depends on your config.
         kuvel.azisaba.net/preferred-server-name: "test-server" # Required for Kuvel to name the server
-        # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this server the initial server.
+        # kuvel.azisaba.net/initial-server: "true" # Uncomment this line if you want to make this server the initial server.
     spec:
       containers:
         - name: test-server
@@ -126,11 +140,11 @@ spec:
 
 In both cases, the server is registered under the name `test-server`.
 
-However, if there are two or more servers with the same name, a number will be assigned after the server name. Specifically, if there are two pods with the server name `test-server`, one will be `test-server` and the other will be `test-server-1`.
+However, if there are two or more servers with the same name, a number will be assigned after the server name. For example, if there are two pods with the server name `test-server`, one will be `test-server` and the other will be `test-server-1`.
 
 ## Load Balancer
 
-On parallelizable servers such as Lobby, it is sometimes desirable to distribute the number of players as much as possible. This is where Kuvel's LoadBalancer feature comes in handy.
+On parallelizable servers such as Lobby servers, it is sometimes desirable to distribute the number of players as evenly as possible. This is where Kuvel's LoadBalancer feature comes in handy.
 
 ```yml
 apiVersion: apps/v1
@@ -140,7 +154,7 @@ metadata:
   labels:
     kuvel.azisaba.net/enable-server-discovery: "true"
     kuvel.azisaba.net/preferred-server-name: "lobby"
-    # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this load balancer server the initial server.
+    # kuvel.azisaba.net/initial-server: "true" # Uncomment this line if you want to make this load balancer server the initial server.
 spec:
   replicas: 3
   selector:
@@ -152,7 +166,7 @@ spec:
         app: lobby-deployment
         kuvel.azisaba.net/enable-server-discovery: "true"
         kuvel.azisaba.net/preferred-server-name: "lobby"
-        # kuvel.azisaba.net/initial-server: "true" # Uncomment out this line if you want to make this server the initial server.
+        # kuvel.azisaba.net/initial-server: "true" # Uncomment this line if you want to make this server the initial server.
     spec:
       containers:
         - name: lobby
@@ -161,21 +175,32 @@ spec:
             - containerPort: 25565
 ```
 
-By applying a Label to a Deployment, Kuvel's LoadBalancer feature can be activated.
+By applying a Label to a Deployment, Kuvel's LoadBalancer feature can be activated. Kuvel's LoadBalancer has the following features.
 
-1. Distribute players who try to join the Load Balancer server to the pods under ReplicaSet.
-2. Synchronize with Kubernetes ReplicaSet and automatically register/unregister forwarding destinations
+1. Distribute players who try to join the Load Balancer server randomly to the pods under ReplicaSet.
+2. Synchronize with Kubernetes ReplicaSet and automatically register/unregister forwarding destinations.
 
 Using this, you can implement a mechanism to randomly connect to `lobby-1`, `lobby-2`, or `lobby-3` when `/server lobby` is invoked.
 
-## Synchronize Server Names in Multi Velocity Environment
+## Synchronize Server Names in Multi Velocity Environments
 
-In a Kubernetes cluster, pods can be created at almost the same time, and this can cause a fatal
-problem in a parallel Velocity environment because it is possible that different Velocity servers
-have different registration names. Kuvel provides name synchronization using Redis to avoid this
+In a Kubernetes cluster, pods can be created at almost the same time, and this can cause different 
+Velocity servers to have different registration names. This can cause fatal issues in a parallel 
+Velocity environment. Kuvel provides name synchronization using Redis to avoid this
 issue. Kuvel uses keys whose key name begins with `kuvel:`.
 
-On 1.x, this feature was optional, but since 2.0.0, this setting became enabled by default.
+On 1.x, this feature was optional, but from 2.0.0, this setting is enabled by default.
+
+## Commands
+
+Use `/kuvel` to inspect, update, and repair server registration state.
+
+- `/kuvel status` - show registration summary and missing registrations
+- `/kuvel list <pods|loadbalancers>` - list UID to server-name mappings
+- `/kuvel register <podUid> <serverName>` - register a pod by UID
+- `/kuvel unregister <podUid>` - unregister a pod by UID
+- `/kuvel setname <podUid> <serverName>` - change a pod's registered server name
+- `/kuvel repair` - re-register missing entries and clean broken mappings
 
 ## License
 [GNU General Public License v3.0](LICENSE)
