@@ -1,6 +1,6 @@
 # The kubernetes namespace to use for the server discovery.
 namespace: ""
-# The prefix to use for the keys of the server labels.
+# The prefix to use for the keys of the server labels or annotations.
 label-key-prefix: "kuvel.azisaba.net"
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
 redis:

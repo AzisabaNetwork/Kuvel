@@ -19,6 +19,8 @@ install it into Velocity plugins directory. Also, you have to fill in the config
 ```yml
 # The kubernetes namespace to use for the server discovery.
 namespace: ""
+# The prefix to use for the keys of the server labels or annotations.
+label-key-prefix: "kuvel.azisaba.net"
 # Server name synchronization by Redis is required in load-balanced environments using multiple Velocity.
 redis:
   group-name: "production"
@@ -32,8 +34,9 @@ redis:
 ```
 
 Alternatively you can use environment variables to configure Kuvel. The environment variable will override
- the config.yml and are `KUVEL_NAMESPACE`, `KUVEL_REDIS_GROUPNAME`, `KUVEL_REDIS_CONNECTION_HOSTNAME`,
-`KUVEL_REDIS_CONNECTION_PORT`, `KUVEL_REDIS_CONNECTION_USERNAME`, and `KUVEL_REDIS_CONNECTION_PASSWORD`.
+ the config.yml and are `KUVEL_NAMESPACE`, `KUVEL_LABEL_KEY_PREFIX`, `KUVEL_REDIS_GROUPNAME`, 
+`KUVEL_REDIS_CONNECTION_HOSTNAME`, `KUVEL_REDIS_CONNECTION_PORT`, `KUVEL_REDIS_CONNECTION_USERNAME`, and 
+`KUVEL_REDIS_CONNECTION_PASSWORD`.
 
 In order for Kuvel to monitor the server, you must request permission from Kubernetes to allow
 Velocity pods discovery Minecraft servers. For Velocity pods, please allow get/list/watch to Pods
@@ -78,6 +81,8 @@ To tell Kuvel that the pod is a Minecraft server, use Label feature of Kubernete
 | kuvel.azisaba.net/enable-server-discovery |true / false|
 |  kuvel.azisaba.net/preferred-server-name  |Name of the server you wish to register with Velocity|
 |     kuvel.azisaba.net/initial-server      |true / false|
+
+If server names longer than 63 characters are desired, the `kuvel.azisaba.net/preferred-server-name` annotation can be used instead of the label.
 
 ### Pod
 

@@ -1,6 +1,7 @@
 package net.azisaba.kuvel.discovery.impl.redis;
 
 import com.velocitypowered.api.scheduler.ScheduledTask;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.text.ParseException;
@@ -10,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -122,17 +124,22 @@ public class RedisServerDiscovery implements ServerDiscovery {
             .getItems()
             .forEach(
                 pod -> {
-                  String uid = pod.getMetadata().getUid();
+                  ObjectMeta metadata = pod.getMetadata();
+                  String uid = metadata.getUid();
                   if (podIdToServerNameMap.containsKey(uid)) {
                     return;
                   }
 
                   String preferServerName =
-                      pod.getMetadata()
-                          .getLabels()
-                          .getOrDefault(
-                              LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix),
-                              pod.getMetadata().getName());
+                      metadata
+                          .getAnnotations()
+                          .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), null);
+                  if (preferServerName == null) {
+                    preferServerName =
+                        metadata
+                            .getLabels()
+                            .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), metadata.getName());
+                  }
                   String serverName =
                       getValidServerName(
                           preferServerName,
@@ -231,10 +238,18 @@ public class RedisServerDiscovery implements ServerDiscovery {
       Map<String, String> loadBalancerMap =
           jedis.hgetAll(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName);
 
+      ObjectMeta metadata = pod.getMetadata();
+      String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
       String preferServerName =
-          pod.getMetadata()
-              .getLabels()
-              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), pod.getMetadata().getName());
+          metadata
+              .getAnnotations()
+              .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), null);
+      if (preferServerName == null) {
+        preferServerName =
+            metadata
+                .getLabels()
+                .getOrDefault(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix), metadata.getName());
+      }
 
       serverName =
           getValidServerName(
