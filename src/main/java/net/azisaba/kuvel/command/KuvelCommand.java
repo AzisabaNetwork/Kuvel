@@ -93,6 +93,32 @@ public class KuvelCommand implements SimpleCommand {
     }
 
     if (args[0].equalsIgnoreCase("register")) {
+      if (args.length >= 2 && args[1].equalsIgnoreCase("loadbalancer")) {
+        if (args.length < 4) {
+          source.sendMessage(
+              Component.text("Usage: /kuvel register loadbalancer <replicaSetUid> <serverName>"));
+          return;
+        }
+        String mappedUid = handler.getReplicaSetUidAndServerNameMap().getUidFromServerName(args[3]);
+        if (mappedUid != null && !mappedUid.equals(args[2])) {
+          source.sendMessage(
+              Component.text("Server name is already mapped to another load balancer uid: " + mappedUid));
+          return;
+        }
+        if (plugin.getProxy().getServer(args[3]).isPresent() && mappedUid == null) {
+          source.sendMessage(Component.text("Server name is already registered: " + args[3]));
+          return;
+        }
+
+        if (handler.registerLoadBalancer(args[2], args[3])) {
+          source.sendMessage(
+              Component.text("Registered load balancer mapping: " + args[2] + " -> " + args[3]));
+        } else {
+          source.sendMessage(Component.text("Failed to register load balancer mapping."));
+        }
+        return;
+      }
+
       if (args.length < 3) {
         source.sendMessage(Component.text("Usage: /kuvel register <podUid> <serverName>"));
         return;
@@ -117,6 +143,23 @@ public class KuvelCommand implements SimpleCommand {
     }
 
     if (args[0].equalsIgnoreCase("unregister")) {
+      if (args.length >= 2 && args[1].equalsIgnoreCase("loadbalancer")) {
+        if (args.length < 3) {
+          source.sendMessage(Component.text("Usage: /kuvel unregister loadbalancer <replicaSetUid>"));
+          return;
+        }
+
+        if (!handler.isLoadBalancerRegistered(args[2])) {
+          source.sendMessage(
+              Component.text("Load balancer uid is not currently registered: " + args[2]));
+          return;
+        }
+
+        handler.unregisterLoadBalancer(args[2]);
+        source.sendMessage(Component.text("Unregistered load balancer mapping: " + args[2]));
+        return;
+      }
+
       if (args.length < 2) {
         source.sendMessage(Component.text("Usage: /kuvel unregister <podUid>"));
         return;
@@ -187,13 +230,19 @@ public class KuvelCommand implements SimpleCommand {
       }
 
       int cleanedLoadBalancerCount = 0;
+      int repairedLoadBalancerCount = 0;
       for (Map.Entry<String, String> entry :
           handler.getReplicaSetUidAndServerNameMap().getAllMap().entrySet()) {
         if (plugin.getProxy().getServer(entry.getValue()).isPresent()) {
           continue;
         }
-        handler.unregisterLoadBalancer(entry.getKey());
-        cleanedLoadBalancerCount++;
+        boolean success = handler.registerLoadBalancer(entry.getKey(), entry.getValue());
+        if (success && plugin.getProxy().getServer(entry.getValue()).isPresent()) {
+          repairedLoadBalancerCount++;
+        } else {
+          handler.unregisterLoadBalancer(entry.getKey());
+          cleanedLoadBalancerCount++;
+        }
       }
 
       source.sendMessage(
@@ -202,6 +251,8 @@ public class KuvelCommand implements SimpleCommand {
                   + repairedPodCount
                   + ", cleanedPod="
                   + cleanedPodCount
+                  + ", repairedLoadBalancer="
+                  + repairedLoadBalancerCount
                   + ", cleanedLoadBalancer="
                   + cleanedLoadBalancerCount));
       return;
@@ -214,7 +265,9 @@ public class KuvelCommand implements SimpleCommand {
     source.sendMessage(Component.text("/kuvel status"));
     source.sendMessage(Component.text("/kuvel list <pods|loadbalancers>"));
     source.sendMessage(Component.text("/kuvel register <podUid> <serverName>"));
+    source.sendMessage(Component.text("/kuvel register loadbalancer <replicaSetUid> <serverName>"));
     source.sendMessage(Component.text("/kuvel unregister <podUid>"));
+    source.sendMessage(Component.text("/kuvel unregister loadbalancer <replicaSetUid>"));
     source.sendMessage(Component.text("/kuvel setname <podUid> <serverName>"));
     source.sendMessage(Component.text("/kuvel repair"));
   }
