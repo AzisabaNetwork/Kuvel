@@ -237,7 +237,7 @@ public class KuvelCommand implements SimpleCommand {
           continue;
         }
         boolean success = handler.registerLoadBalancer(entry.getKey(), entry.getValue());
-        if (success && plugin.getProxy().getServer(entry.getValue()).isPresent()) {
+        if (success) {
           repairedLoadBalancerCount++;
         } else {
           handler.unregisterLoadBalancer(entry.getKey());
