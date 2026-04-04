@@ -197,9 +197,11 @@ Kubernetesクラスター内ではPodがほぼ同時に作成されることが�
 - `/kuvel status` - 登録状況と不足登録数を表示
 - `/kuvel list <pods|loadbalancers>` - 現在のUIDとサーバー名の対応一覧を表示
 - `/kuvel register <podUid> <serverName>` - Pod UIDを指定して登録
+- `/kuvel register loadbalancer <replicaSetUid> <serverName>` - ReplicaSet UIDを指定してLoadBalancerを登録
 - `/kuvel unregister <podUid>` - Pod UIDを指定して登録解除
+- `/kuvel unregister loadbalancer <replicaSetUid>` - ReplicaSet UIDを指定してLoadBalancerを登録解除
 - `/kuvel setname <podUid> <serverName>` - Podの登録名を変更
-- `/kuvel repair` - 不足登録の再登録と壊れた対応の整理を実行
+- `/kuvel repair` - 不足登録（Pod/LoadBalancer）の再登録と壊れた対応の整理を実行
 
 ## ライセンス
 
