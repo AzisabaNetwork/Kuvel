@@ -88,9 +88,11 @@ The following labels are also used for some other features.
 | kuvel.azisaba.net/preferred-server-name | Name of the server you wish to register with Velocity |
 |    kuvel.azisaba.net/initial-server     |                     true / false                      |
 | kuvel.azisaba.net/disable-name-suffix   |                     true / false                      |
+| kuvel.azisaba.net/disable-load-balancer |                     true / false                      |
 
 If server names longer than 63 characters are desired, the `kuvel.azisaba.net/preferred-server-name` annotation can be used instead of the label.
 If `kuvel.azisaba.net/disable-name-suffix=true` is set on a Pod, Kuvel will register the server name exactly as `preferred-server-name` (no `-1` suffix). If multiple replicas are detected, Kuvel logs an error and skips the extra pods. This label is intended for single-replica Pods only.
+If `kuvel.azisaba.net/disable-load-balancer=true` is set on a ReplicaSet or Deployment metadata, Kuvel will skip creating the virtual load balancer server for that ReplicaSet. The backing Pods are still registered normally.
 
 ### Pod
 
@@ -155,6 +157,7 @@ metadata:
     kuvel.azisaba.net/enable-server-discovery: "true"
     kuvel.azisaba.net/preferred-server-name: "lobby"
     # kuvel.azisaba.net/initial-server: "true" # Uncomment this line if you want to make this load balancer server the initial server.
+    # kuvel.azisaba.net/disable-load-balancer: "true" # Uncomment this line to disable only the load balancer entry.
 spec:
   replicas: 3
   selector:

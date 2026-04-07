@@ -99,7 +99,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
   private void processUpdatedReplicaSet(ReplicaSet replicaSet) {
     lock.lock();
     try {
-      if (replicaSet.getStatus().getReplicas() <= 0) {
+      if (replicaSet.getStatus().getReplicas() <= 0 || isDisableLoadBalancer(replicaSet.getMetadata())) {
         unregisterOrIgnore(replicaSet.getMetadata().getUid());
       } else {
         registerOrIgnore(replicaSet);
@@ -136,6 +136,9 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
             .getLabels()
             .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(labelKeyPrefix), "false")
             .equalsIgnoreCase("true");
+    if (isDisableLoadBalancer(metadata)) {
+      return;
+    }
 
     if (serverName == null) {
       return;
@@ -247,6 +250,10 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
             jedis.hdel(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName, entry.getKey());
             continue;
           }
+          if (isDisableLoadBalancer(replicaSet.getMetadata())) {
+            jedis.hdel(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName, entry.getKey());
+            continue;
+          }
           registerOrIgnore(replicaSet, true);
         }
 
@@ -267,6 +274,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
                   || metadata.getLabels().containsKey(LabelKeys.PREFERRED_SERVER_NAME.getKey(labelKeyPrefix));
             })
             .filter(replicaSet -> replicaSet.getStatus().getReplicas() > 0)
+            .filter(replicaSet -> !isDisableLoadBalancer(replicaSet.getMetadata()))
             .filter(replicaSet ->
                 !uidAndServerNameMapInRedis.containsKey(replicaSet.getMetadata().getUid()))
             .forEach(this::registerOrIgnore);
@@ -307,5 +315,18 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
         .filter(replicaSet -> replicaSet.getMetadata().getUid().equals(uid))
         .findAny()
         .orElse(null);
+  }
+
+  private boolean isDisableLoadBalancer(ObjectMeta metadata) {
+    String key = LabelKeys.DISABLE_LOAD_BALANCER.getKey(plugin.getKuvelConfig().getLabelKeyPrefix());
+    Map<String, String> annotations = metadata.getAnnotations();
+    if (annotations != null && annotations.containsKey(key)) {
+      return annotations.get(key).equalsIgnoreCase("true");
+    }
+
+    Map<String, String> labels = metadata.getLabels();
+    return labels != null
+        && labels.containsKey(key)
+        && labels.get(key).equalsIgnoreCase("true");
   }
 }

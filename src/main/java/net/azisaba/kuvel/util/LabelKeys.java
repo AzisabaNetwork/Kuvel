@@ -7,7 +7,9 @@ import lombok.RequiredArgsConstructor;
 public enum LabelKeys {
   PREFERRED_SERVER_NAME("preferred-server-name"),
   INITIAL_SERVER("initial-server"),
-  DISABLE_NAME_SUFFIX("disable-name-suffix");
+  DISABLE_NAME_SUFFIX("disable-name-suffix"),
+  DISABLE_LOAD_BALANCER("disable-load-balancer"),
+  ;
 
   private final String key;
 

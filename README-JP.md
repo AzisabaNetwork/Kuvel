@@ -90,9 +90,11 @@ labelはconfigで指定します。デフォルトでは、`kuvel.azisaba.net/en
 | kuvel.azisaba.net/preferred-server-name | Velocityに登録したいサーバー名 |
 |    kuvel.azisaba.net/initial-server     |    true / false     |
 | kuvel.azisaba.net/disable-name-suffix   |    true / false     |
+| kuvel.azisaba.net/disable-load-balancer |    true / false     |
 
 サーバー名が63文字を超える場合は、ラベルではなく`kuvel.azisaba.net/preferred-server-name`のアノテーションを使用してください。
 Podに`kuvel.azisaba.net/disable-name-suffix=true`を設定すると、`preferred-server-name`をそのまま登録します (`-1`などのsuffixを付与しません)。複数レプリカが検出された場合はエラーを出して追加Podを登録しません。単一レプリカのPod向けの設定です。
+ReplicaSetまたはDeploymentのmetadataに`kuvel.azisaba.net/disable-load-balancer=true`を設定すると、そのReplicaSet用の仮想LoadBalancerサーバーは作成されません。配下のPod自体は通常どおり登録されます。
 
 ### Podの場合
 
@@ -156,6 +158,7 @@ metadata:
     kuvel.azisaba.net/enable-server-discovery: "true"
     kuvel.azisaba.net/preferred-server-name: "lobby"
     # kuvel.azisaba.net/initial-server: "true" # このロードバランサーを初期サーバーにする場合はコメントアウトを外す
+    # kuvel.azisaba.net/disable-load-balancer: "true" # LoadBalancerエントリだけ無効にする場合はコメントアウトを外す
 spec:
   replicas: 3
   selector:
