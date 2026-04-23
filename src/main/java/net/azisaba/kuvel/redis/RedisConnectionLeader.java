@@ -80,11 +80,11 @@ public class RedisConnectionLeader {
   }
 
   public void publishNewLoadBalancer(
-      String replicaSetUid, String serverName, boolean initialServer) {
+      String replicaSetUid, String serverName, boolean initialServer, String forcedHost) {
     try (Jedis jedis = jedisPool.getResource()) {
       jedis.publish(
           RedisKeys.LOAD_BALANCER_ADDED_NOTIFY_PREFIX.getKey() + groupName,
-          replicaSetUid + ":" + serverName + ":" + initialServer);
+          replicaSetUid + ":" + serverName + ":" + initialServer + ":" + (forcedHost != null ? forcedHost : ""));
     }
   }
 

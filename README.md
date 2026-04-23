@@ -89,10 +89,12 @@ The following labels are also used for some other features.
 |    kuvel.azisaba.net/initial-server     |                     true / false                      |
 | kuvel.azisaba.net/disable-name-suffix   |                     true / false                      |
 | kuvel.azisaba.net/disable-load-balancer |                     true / false                      |
+|      kuvel.azisaba.net/forced-host      |    Hostname to route to this server (forced hosts)    |
 
 If server names longer than 63 characters are desired, the `kuvel.azisaba.net/preferred-server-name` annotation can be used instead of the label.
 If `kuvel.azisaba.net/disable-name-suffix=true` is set on a Pod, Kuvel will register the server name exactly as `preferred-server-name` (no `-1` suffix). If multiple replicas are detected, Kuvel logs an error and skips the extra pods. This label is intended for single-replica Pods only.
 If `kuvel.azisaba.net/disable-load-balancer=true` is set on a ReplicaSet or Deployment metadata, Kuvel will skip creating the virtual load balancer server for that ReplicaSet. The backing Pods are still registered normally.
+If `kuvel.azisaba.net/forced-host` is set on a Pod, Deployment, or ReplicaSet, players connecting via that hostname will be routed to the corresponding server. This mirrors Velocity's [forced hosts](https://docs.papermc.io/velocity/configuration/#forced-hosts-section) feature but is configured dynamically through Kubernetes labels/annotations.
 
 ### Pod
 
@@ -106,6 +108,7 @@ metadata:
     kuvel.azisaba.net/preferred-server-name: "test-server" # Required for Kuvel to name the server
     # kuvel.azisaba.net/initial-server: "true" # Uncomment this line if you want to make this server the initial server.   
     # kuvel.azisaba.net/disable-name-suffix: "true" # Use the exact preferred name (no -1 suffix); single replica only.
+    # kuvel.azisaba.net/forced-host: "pvp.example.com" # Players connecting via pvp.example.com will be sent to this server.
 spec:
   containers:
     - name: test-server
@@ -132,6 +135,7 @@ spec:
         kuvel.azisaba.net/enable-server-discovery: "true" # Required for Kuvel to detect Minecraft servers. Depends on your config.
         kuvel.azisaba.net/preferred-server-name: "test-server" # Required for Kuvel to name the server
         # kuvel.azisaba.net/initial-server: "true" # Uncomment this line if you want to make this server the initial server.
+        # kuvel.azisaba.net/forced-host: "pvp.example.com" # Players connecting via pvp.example.com will be sent to this server.
     spec:
       containers:
         - name: test-server
@@ -158,6 +162,7 @@ metadata:
     kuvel.azisaba.net/preferred-server-name: "lobby"
     # kuvel.azisaba.net/initial-server: "true" # Uncomment this line if you want to make this load balancer server the initial server.
     # kuvel.azisaba.net/disable-load-balancer: "true" # Uncomment this line to disable only the load balancer entry.
+    # kuvel.azisaba.net/forced-host: "lobby.example.com" # Players connecting via lobby.example.com will be sent to this load balancer.
 spec:
   replicas: 3
   selector:

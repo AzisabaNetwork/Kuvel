@@ -9,6 +9,7 @@ public enum LabelKeys {
   INITIAL_SERVER("initial-server"),
   DISABLE_NAME_SUFFIX("disable-name-suffix"),
   DISABLE_LOAD_BALANCER("disable-load-balancer"),
+  FORCED_HOST("forced-host"),
   ;
 
   private final String key;
