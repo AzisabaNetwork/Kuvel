@@ -5,6 +5,8 @@ import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerPort;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodList;
+import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
+import io.fabric8.kubernetes.api.model.apps.ReplicaSetList;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -17,11 +19,13 @@ import javax.annotation.Nullable;
 
 import io.fabric8.kubernetes.client.dsl.FilterWatchListDeletable;
 import io.fabric8.kubernetes.client.dsl.PodResource;
+import io.fabric8.kubernetes.client.dsl.RollableScalableResource;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.azisaba.kuvel.discovery.LoadBalancerDiscovery;
 import net.azisaba.kuvel.discovery.ServerDiscovery;
 import net.azisaba.kuvel.loadbalancer.LoadBalancer;
+import net.azisaba.kuvel.loadbalancer.strategy.impl.RoundRobinLoadBalancingStrategy;
 import net.azisaba.kuvel.util.LabelKeys;
 import net.azisaba.kuvel.util.UidAndServerNameMap;
 
@@ -336,5 +340,64 @@ public class KuvelServiceHandler {
    */
   public boolean isPodRegistered(String podId) {
     return podUidAndServerNameMap.getServerNameFromUid(podId) != null;
+  }
+
+  /**
+   * Register a load balancer with ReplicaSet uid and server name.
+   *
+   * @param replicaSetUid The ReplicaSet uid to register.
+   * @param serverName The server name to register.
+   * @return true if the load balancer is registered successfully.
+   */
+  public boolean registerLoadBalancer(String replicaSetUid, String serverName) {
+    FilterWatchListDeletable<ReplicaSet, ReplicaSetList, RollableScalableResource<ReplicaSet>> request =
+        client.apps().replicaSets().inNamespace(namespace);
+
+    for (Entry<String, String> e : plugin.getKuvelConfig().getLabelSelectors().entrySet()) {
+      request = request.withLabel(e.getKey(), e.getValue());
+    }
+
+    Optional<ReplicaSet> replicaSet =
+        request
+            .list()
+            .getItems()
+            .stream()
+            .filter(r -> r.getMetadata().getUid().equals(replicaSetUid))
+            .findFirst();
+    if (replicaSet.isEmpty()) {
+      return false;
+    }
+
+    boolean initialServer =
+        replicaSet
+            .get()
+            .getMetadata()
+            .getLabels()
+            .getOrDefault(
+                LabelKeys.INITIAL_SERVER.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()),
+                "false")
+            .equalsIgnoreCase("true");
+
+    plugin
+        .getProxy()
+        .registerServer(new ServerInfo(serverName, new InetSocketAddress("0.0.0.0", 0)));
+    registerLoadBalancer(
+        new LoadBalancer(
+            plugin.getProxy(),
+            plugin.getProxy().getServer(serverName).orElseThrow(),
+            new RoundRobinLoadBalancingStrategy(),
+            replicaSetUid,
+            initialServer));
+    return true;
+  }
+
+  /**
+   * Gets whether the specified load balancer is registered.
+   *
+   * @param replicaSetUid The ReplicaSet uid to check.
+   * @return true if the specified load balancer uid is registered.
+   */
+  public boolean isLoadBalancerRegistered(String replicaSetUid) {
+    return replicaSetUidAndServerNameMap.getServerNameFromUid(replicaSetUid) != null;
   }
 }

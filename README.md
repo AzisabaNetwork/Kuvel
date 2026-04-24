@@ -201,9 +201,11 @@ Use `/kuvel` to inspect, update, and repair server registration state.
 - `/kuvel status` - show registration summary and missing registrations
 - `/kuvel list <pods|loadbalancers>` - list UID to server-name mappings
 - `/kuvel register <podUid> <serverName>` - register a pod by UID
+- `/kuvel register loadbalancer <replicaSetUid> <serverName>` - register a load balancer by ReplicaSet UID
 - `/kuvel unregister <podUid>` - unregister a pod by UID
+- `/kuvel unregister loadbalancer <replicaSetUid>` - unregister a load balancer by ReplicaSet UID
 - `/kuvel setname <podUid> <serverName>` - change a pod's registered server name
-- `/kuvel repair` - re-register missing entries and clean broken mappings
+- `/kuvel repair` - re-register missing entries (pods/load balancers) and clean broken mappings
 
 ## License
 [GNU General Public License v3.0](LICENSE)
