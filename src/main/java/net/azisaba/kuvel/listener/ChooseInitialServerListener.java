@@ -4,6 +4,7 @@ import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -19,6 +20,21 @@ public class ChooseInitialServerListener {
 
   @Subscribe
   public void onInitialServerChoose(PlayerChooseInitialServerEvent event) {
+    Optional<InetSocketAddress> virtualHost = event.getPlayer().getVirtualHost();
+    if (virtualHost.isPresent()) {
+      String hostname = virtualHost.get().getHostString();
+      List<String> forcedServerNames = handler.getForcedHosts().get(hostname);
+      if (forcedServerNames != null && !forcedServerNames.isEmpty()) {
+        for (String serverName : forcedServerNames) {
+          Optional<RegisteredServer> optionalServer = proxy.getServer(serverName);
+          if (optionalServer.isPresent()) {
+            event.setInitialServer(optionalServer.get());
+            return;
+          }
+        }
+      }
+    }
+
     if (handler.getInitialServerNames().isEmpty()) {
       return;
     }

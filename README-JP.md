@@ -85,16 +85,18 @@ labelはconfigで指定します。デフォルトでは、`kuvel.azisaba.net/en
 
 また、一部の機能を使用するために以下のlabelを使用します。
 
-|                 Label名                  |          値          |
-|:---------------------------------------:|:-------------------:|
-| kuvel.azisaba.net/preferred-server-name | Velocityに登録したいサーバー名 |
-|    kuvel.azisaba.net/initial-server     |    true / false     |
-| kuvel.azisaba.net/disable-name-suffix   |    true / false     |
-| kuvel.azisaba.net/disable-load-balancer |    true / false     |
+|                 Label名                  |              値               |
+|:---------------------------------------:|:----------------------------:|
+| kuvel.azisaba.net/preferred-server-name |    Velocityに登録したいサーバー名     |
+|    kuvel.azisaba.net/initial-server     |        true / false          |
+| kuvel.azisaba.net/disable-name-suffix   |        true / false          |
+| kuvel.azisaba.net/disable-load-balancer |        true / false          |
+|      kuvel.azisaba.net/forced-host      | このサーバーにルーティングするホスト名 (forced hosts) |
 
 サーバー名が63文字を超える場合は、ラベルではなく`kuvel.azisaba.net/preferred-server-name`のアノテーションを使用してください。
 Podに`kuvel.azisaba.net/disable-name-suffix=true`を設定すると、`preferred-server-name`をそのまま登録します (`-1`などのsuffixを付与しません)。複数レプリカが検出された場合はエラーを出して追加Podを登録しません。単一レプリカのPod向けの設定です。
 ReplicaSetまたはDeploymentのmetadataに`kuvel.azisaba.net/disable-load-balancer=true`を設定すると、そのReplicaSet用の仮想LoadBalancerサーバーは作成されません。配下のPod自体は通常どおり登録されます。
+Pod、Deployment、またはReplicaSetに`kuvel.azisaba.net/forced-host`を設定すると、そのホスト名で接続したプレイヤーは対応するサーバーにルーティングされます。これはVelocityの[forced hosts](https://docs.papermc.io/velocity/configuration/#forced-hosts-section)機能をKubernetesのラベル/アノテーションで動的に設定するものです。
 
 ### Podの場合
 
@@ -108,6 +110,7 @@ metadata:
     kuvel.azisaba.net/preferred-server-name: "test-server" # Kuvelがサーバーの命名をするために必要
     # kuvel.azisaba.net/initial-server: "true" # 初期サーバーにする場合はコメントアウトを外す
     # kuvel.azisaba.net/disable-name-suffix: "true" # preferred-server-nameをそのまま登録する (単一レプリカのみ)
+    # kuvel.azisaba.net/forced-host: "pvp.example.com" # pvp.example.comで接続したプレイヤーをこのサーバーに送る
 spec:
   containers:
     - name: test-server
@@ -134,6 +137,7 @@ spec:
         kuvel.azisaba.net/enable-server-discovery: "true" # KuvelがMinecraftサーバーを見つけるために必要 (Configに依存)
         kuvel.azisaba.net/preferred-server-name: "test-server" # Kuvelがサーバーの命名をするために必要
         # kuvel.azisaba.net/initial-server: "true" # 初期サーバーにする場合はコメントアウトを外す
+        # kuvel.azisaba.net/forced-host: "pvp.example.com" # pvp.example.comで接続したプレイヤーをこのサーバーに送る
     spec:
       containers:
         - name: test-server
@@ -159,6 +163,7 @@ metadata:
     kuvel.azisaba.net/preferred-server-name: "lobby"
     # kuvel.azisaba.net/initial-server: "true" # このロードバランサーを初期サーバーにする場合はコメントアウトを外す
     # kuvel.azisaba.net/disable-load-balancer: "true" # LoadBalancerエントリだけ無効にする場合はコメントアウトを外す
+    # kuvel.azisaba.net/forced-host: "lobby.example.com" # lobby.example.comで接続したプレイヤーをこのロードバランサーに送る
 spec:
   replicas: 3
   selector:

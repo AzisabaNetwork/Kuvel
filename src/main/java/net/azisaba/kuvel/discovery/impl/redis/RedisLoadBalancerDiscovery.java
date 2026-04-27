@@ -136,6 +136,16 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
             .getLabels()
             .getOrDefault(LabelKeys.INITIAL_SERVER.getKey(labelKeyPrefix), "false")
             .equalsIgnoreCase("true");
+    String forcedHost =
+        metadata
+            .getLabels()
+            .getOrDefault(LabelKeys.FORCED_HOST.getKey(labelKeyPrefix), null);
+    if (forcedHost == null) {
+      forcedHost =
+          metadata
+              .getAnnotations()
+              .getOrDefault(LabelKeys.FORCED_HOST.getKey(labelKeyPrefix), null);
+    }
     if (isDisableLoadBalancer(metadata)) {
       return;
     }
@@ -169,7 +179,7 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
       kuvelServiceHandler.getReplicaSetUidAndServerNameMap().register(uid, serverName);
       jedis.hset(RedisKeys.LOAD_BALANCERS_PREFIX.getKey() + groupName, uid, serverName);
 
-      redisConnectionLeader.publishNewLoadBalancer(uid, serverName, initialServer);
+      redisConnectionLeader.publishNewLoadBalancer(uid, serverName, initialServer, forcedHost);
 
       RegisteredServer server =
           plugin
@@ -182,7 +192,8 @@ public class RedisLoadBalancerDiscovery implements LoadBalancerDiscovery {
               server,
               new RoundRobinLoadBalancingStrategy(),
               uid,
-              initialServer));
+              initialServer,
+              forcedHost));
     }
   }
 

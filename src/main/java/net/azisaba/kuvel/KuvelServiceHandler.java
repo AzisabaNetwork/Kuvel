@@ -10,8 +10,11 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 
@@ -38,6 +41,7 @@ public class KuvelServiceHandler {
   private final UidAndServerNameMap replicaSetUidAndServerNameMap = new UidAndServerNameMap();
 
   private final List<String> initialServerNames = new ArrayList<>();
+  private final Map<String, List<String>> forcedHosts = new ConcurrentHashMap<>();
 
   private final AtomicReference<ServerDiscovery> serverDiscovery = new AtomicReference<>();
   private final AtomicReference<LoadBalancerDiscovery> loadBalancerDiscovery =
@@ -57,6 +61,10 @@ public class KuvelServiceHandler {
 
     if (loadBalancer.isInitialServer() && !initialServerNames.contains(serverName)) {
       initialServerNames.add(serverName);
+    }
+
+    if (loadBalancer.getForcedHost() != null) {
+      addForcedHost(loadBalancer.getForcedHost(), serverName);
     }
 
     plugin
@@ -101,6 +109,7 @@ public class KuvelServiceHandler {
     replicaSetUidAndServerNameMap.unregister(loadBalancer.getReplicaSetUid());
 
     initialServerNames.remove(serverName);
+    removeForcedHost(serverName);
 
     plugin
         .getLogger()
@@ -244,11 +253,24 @@ public class KuvelServiceHandler {
       }
     }
 
+    String labelKeyPrefix = plugin.getKuvelConfig().getLabelKeyPrefix();
     String initialServerStr =
         pod.getMetadata().getLabels().getOrDefault(
-                LabelKeys.INITIAL_SERVER.getKey(plugin.getKuvelConfig().getLabelKeyPrefix()), "false");
+                LabelKeys.INITIAL_SERVER.getKey(labelKeyPrefix), "false");
     if (Boolean.parseBoolean(initialServerStr)) {
       initialServerNames.add(serverName);
+    }
+
+    String forcedHost =
+        pod.getMetadata().getLabels().getOrDefault(
+                LabelKeys.FORCED_HOST.getKey(labelKeyPrefix), null);
+    if (forcedHost == null) {
+      forcedHost =
+          pod.getMetadata().getAnnotations().getOrDefault(
+                  LabelKeys.FORCED_HOST.getKey(labelKeyPrefix), null);
+    }
+    if (forcedHost != null) {
+      addForcedHost(forcedHost, serverName);
     }
 
     plugin
@@ -315,6 +337,7 @@ public class KuvelServiceHandler {
     }
 
     initialServerNames.remove(serverName);
+    removeForcedHost(serverName);
 
     plugin.getLogger().info("Unregistered server: " + serverName + " (" + podUid + ")");
   }
@@ -336,5 +359,18 @@ public class KuvelServiceHandler {
    */
   public boolean isPodRegistered(String podId) {
     return podUidAndServerNameMap.getServerNameFromUid(podId) != null;
+  }
+
+  private void addForcedHost(String hostname, String serverName) {
+    forcedHosts.computeIfAbsent(hostname, k -> new CopyOnWriteArrayList<>()).add(serverName);
+  }
+
+  private void removeForcedHost(String serverName) {
+    forcedHosts.values().forEach(list -> list.remove(serverName));
+    forcedHosts.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+  }
+
+  public Map<String, List<String>> getForcedHosts() {
+    return forcedHosts;
   }
 }

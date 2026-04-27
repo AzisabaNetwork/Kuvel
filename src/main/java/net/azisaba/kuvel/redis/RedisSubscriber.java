@@ -45,6 +45,10 @@ public class RedisSubscriber extends JedisPubSub {
       String replicaSetUid = message.split(":")[0];
       String serverName = message.split(":")[1];
       boolean initialServer = Boolean.parseBoolean(message.split(":")[2]);
+      String forcedHost = message.split(":").length > 3 ? message.split(":")[3] : null;
+      if (forcedHost != null && forcedHost.isEmpty()) {
+        forcedHost = null;
+      }
 
       RegisteredServer server =
           plugin
@@ -56,7 +60,8 @@ public class RedisSubscriber extends JedisPubSub {
               server,
               new RoundRobinLoadBalancingStrategy(),
               replicaSetUid,
-              initialServer);
+              initialServer,
+              forcedHost);
       kuvelServiceHandler.registerLoadBalancer(loadBalancer);
     } else if (channel.startsWith(RedisKeys.POD_DELETED_NOTIFY_PREFIX.getKey())) {
       kuvelServiceHandler.unregisterPod(message);
